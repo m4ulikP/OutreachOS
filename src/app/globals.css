@@ -108,3 +108,8 @@ a:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+
+/* Typography: Prevent orphan words on headings (Web Interface Guidelines) */
+h1, h2, h3, h4 {
+  text-wrap: balance;
+}

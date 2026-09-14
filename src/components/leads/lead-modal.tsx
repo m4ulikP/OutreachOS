@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { LeadStage, TagType } from "@prisma/client";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 export interface LeadFormData {
   firstName: string;
@@ -156,15 +156,15 @@ export function LeadModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4 pt-2">
         {error && (
-          <div className="flex items-center gap-2 p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+          <div role="alert" className="flex items-center gap-2 p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400">
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{error}</span>
           </div>
         )}
 
         {duplicateWarning && (
-          <div className="flex items-start gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div role="alert" className="flex items-start gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <span className="font-semibold">Duplicate Lead Detected: </span>
               <span>{duplicateWarning}</span>
@@ -176,13 +176,17 @@ export function LeadModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="First Name"
-            placeholder="e.g. Sarah"
+            name="firstName"
+            autoComplete="given-name"
+            placeholder="e.g. Sarah…"
             value={form.firstName}
             onChange={(e) => setForm({ ...form, firstName: e.target.value })}
           />
           <Input
             label="Last Name"
-            placeholder="e.g. Connor"
+            name="lastName"
+            autoComplete="family-name"
+            placeholder="e.g. Connor…"
             value={form.lastName}
             onChange={(e) => setForm({ ...form, lastName: e.target.value })}
           />
@@ -192,15 +196,21 @@ export function LeadModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="Email Address"
+            name="email"
             type="email"
-            placeholder="sarah@example.com"
+            autoComplete="email"
+            spellCheck={false}
+            placeholder="sarah@example.com…"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
           <Input
             label="Phone"
+            name="phone"
             type="tel"
-            placeholder="+1 (555) 019-2834"
+            autoComplete="tel"
+            spellCheck={false}
+            placeholder="+1 (555) 019-2834…"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
@@ -210,13 +220,16 @@ export function LeadModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="Job Title"
-            placeholder="e.g. VP of Product"
+            name="jobTitle"
+            placeholder="e.g. VP of Product…"
             value={form.jobTitle}
             onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
           />
           <Input
             label="Company Name"
-            placeholder="e.g. Acme Corp"
+            name="companyName"
+            autoComplete="organization"
+            placeholder="e.g. Acme Corp…"
             value={form.companyName}
             onChange={(e) => setForm({ ...form, companyName: e.target.value })}
           />
@@ -226,13 +239,19 @@ export function LeadModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="LinkedIn Profile URL"
-            placeholder="https://linkedin.com/in/sarah-connor"
+            name="linkedInUrl"
+            type="url"
+            spellCheck={false}
+            placeholder="https://linkedin.com/in/sarah-connor…"
             value={form.linkedInUrl}
             onChange={(e) => setForm({ ...form, linkedInUrl: e.target.value })}
           />
           <Input
             label="Website or Domain"
-            placeholder="https://acme.com"
+            name="website"
+            type="url"
+            spellCheck={false}
+            placeholder="https://acme.com…"
             value={form.website}
             onChange={(e) => setForm({ ...form, website: e.target.value })}
           />
@@ -242,18 +261,21 @@ export function LeadModal({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Input
             label="Industry"
-            placeholder="e.g. B2B SaaS"
+            name="industry"
+            placeholder="e.g. B2B SaaS…"
             value={form.industry}
             onChange={(e) => setForm({ ...form, industry: e.target.value })}
           />
           <Input
             label="Location"
-            placeholder="e.g. Austin, TX"
+            name="location"
+            placeholder="e.g. Austin, TX…"
             value={form.location}
             onChange={(e) => setForm({ ...form, location: e.target.value })}
           />
           <Select
             label="Company Size"
+            name="companySize"
             value={form.companySize}
             onChange={(e) => setForm({ ...form, companySize: e.target.value })}
           >
@@ -270,6 +292,7 @@ export function LeadModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Select
             label="Pipeline Stage"
+            name="stage"
             value={form.stage}
             onChange={(e) => setForm({ ...form, stage: e.target.value as LeadStage })}
           >
@@ -286,6 +309,7 @@ export function LeadModal({
           {!editLead && (
             <Select
               label="Temperature Tag"
+              name="tagType"
               value={form.tagType}
               onChange={(e) => setForm({ ...form, tagType: e.target.value as TagType })}
             >
@@ -300,12 +324,14 @@ export function LeadModal({
 
         {/* Notes */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-medium text-foreground">
+          <label className="block text-xs font-medium text-foreground" htmlFor="leadNotesInput">
             Prospect Notes & Context
           </label>
           <textarea
+            id="leadNotesInput"
+            name="notes"
             rows={3}
-            placeholder="Specific freelance opportunities, project budget notes, tech stack details..."
+            placeholder="Specific freelance opportunities, project budget notes, tech stack details…"
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
             className="flex w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -324,7 +350,7 @@ export function LeadModal({
             Cancel
           </Button>
           <Button type="submit" size="sm" disabled={loading}>
-            {loading ? "Saving..." : editLead ? "Update Lead" : "Create Lead"}
+            {loading ? "Saving…" : editLead ? "Update Lead" : "Create Lead"}
           </Button>
         </div>
       </form>

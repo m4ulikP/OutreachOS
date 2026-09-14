@@ -7,9 +7,10 @@ import { ActivityChart } from "@/components/dashboard/activity-chart";
 import { RecentLeadsCard } from "@/components/dashboard/recent-leads-card";
 import { RecentActivityCard } from "@/components/dashboard/recent-activity-card";
 import { UpcomingMeetingsCard } from "@/components/dashboard/upcoming-meetings-card";
+import { SystemStatusBanner } from "@/components/common/system-status-banner";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { UserPlus, Sparkles, AlertCircle } from "lucide-react";
+import { UserPlus, Sparkles } from "lucide-react";
 import { checkDatabaseConnection } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -20,52 +21,39 @@ export default async function DashboardPage() {
   const metrics = user ? await getDashboardMetrics(user.id) : null;
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Database Connection Alert if unreachable */}
+    <div className="space-y-5 pb-12">
+      {/* Contextual System Status Banner (Non-overwhelming, clear remediation) */}
       {!dbStatus.connected && (
-        <div className="flex items-center gap-3 p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs">
-          <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-          <div className="flex-1">
-            <span className="font-semibold">PostgreSQL Server Notice: </span>
-            <span>
-              {dbStatus.error || "PostgreSQL database is currently starting or not reachable."} Run{" "}
-              <code className="px-1.5 py-0.5 rounded bg-amber-500/20 font-mono text-[11px]">
-                docker compose up -d
-              </code>{" "}
-              or verify your <code className="px-1 py-0.5 rounded bg-amber-500/20 font-mono">DATABASE_URL</code> in{" "}
-              <code className="px-1 py-0.5 rounded bg-amber-500/20 font-mono">.env</code>.
-            </span>
-          </div>
-        </div>
+        <SystemStatusBanner error={dbStatus.error} />
       )}
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             Pipeline Dashboard
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Real-time outreach performance, lead conversions, and sales metrics
+            Real-time outreach velocity, lead conversions, and sales metrics
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <Link href="/finder">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Sparkles className="h-3.5 w-3.5" />
+              <Sparkles className="h-3.5 w-3.5 text-indigo-500" aria-hidden="true" />
               Find Prospects
             </Button>
           </Link>
           <Link href="/leads">
             <Button size="sm" className="gap-1.5 text-xs">
-              <UserPlus className="h-3.5 w-3.5" />
+              <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
               Manage Leads
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* 7 KPI Cards */}
+      {/* 7 KPI Cards with tabular-nums and responsive grid */}
       <KpiCards
         totalLeads={metrics?.totalLeads ?? 0}
         emailsSent={metrics?.emailsSent ?? 0}

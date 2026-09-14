@@ -38,13 +38,15 @@ export function LeadFilters({ filters, onChange, onReset }: LeadFiltersProps) {
     filters.location;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {/* Primary Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-2.5">
         <div className="relative flex-1 w-full">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
           <Input
-            placeholder="Search by name, email, company, or job title..."
+            placeholder="Search by name, email, company, or job title…"
+            name="leadSearch"
+            spellCheck={false}
             value={filters.search}
             onChange={(e) => update("search", e.target.value)}
             className="pl-9 h-9 text-xs"
@@ -53,9 +55,11 @@ export function LeadFilters({ filters, onChange, onReset }: LeadFiltersProps) {
 
         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
           <Select
+            name="stageFilter"
             value={filters.stage}
             onChange={(e) => update("stage", e.target.value)}
             className="h-9 text-xs w-36"
+            aria-label="Filter by pipeline stage"
           >
             <option value="">All Stages</option>
             <option value={LeadStage.NEW}>NEW</option>
@@ -69,9 +73,11 @@ export function LeadFilters({ filters, onChange, onReset }: LeadFiltersProps) {
           </Select>
 
           <Select
+            name="temperatureFilter"
             value={filters.temperature}
             onChange={(e) => update("temperature", e.target.value)}
             className="h-9 text-xs w-36"
+            aria-label="Filter by lead temperature"
           >
             <option value="">All Temperatures</option>
             <option value={TagType.HOT}>HOT</option>
@@ -87,9 +93,10 @@ export function LeadFilters({ filters, onChange, onReset }: LeadFiltersProps) {
             onClick={() => setExpanded(!expanded)}
             className="h-9 px-2.5 text-xs gap-1.5"
             aria-expanded={expanded}
+            aria-label="Toggle additional filter options"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">More Filters</span>
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Filters</span>
           </Button>
 
           {hasActiveFilters && (
@@ -99,8 +106,9 @@ export function LeadFilters({ filters, onChange, onReset }: LeadFiltersProps) {
               onClick={onReset}
               className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground"
               title="Reset Filters"
+              aria-label="Reset all search filters"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
           )}
         </div>
@@ -110,21 +118,27 @@ export function LeadFilters({ filters, onChange, onReset }: LeadFiltersProps) {
       {expanded && (
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 p-3 rounded-lg border border-border bg-card/60 animate-in fade-in-50 duration-150">
           <Input
-            placeholder="Filter by industry..."
+            placeholder="Filter by industry…"
+            name="industryFilter"
+            spellCheck={false}
             value={filters.industry}
             onChange={(e) => update("industry", e.target.value)}
             className="h-8 text-xs"
           />
           <Input
-            placeholder="Filter by location..."
+            placeholder="Filter by location…"
+            name="locationFilter"
+            spellCheck={false}
             value={filters.location}
             onChange={(e) => update("location", e.target.value)}
             className="h-8 text-xs"
           />
           <Select
+            name="sortBy"
             value={filters.sortBy}
             onChange={(e) => update("sortBy", e.target.value)}
             className="h-8 text-xs"
+            aria-label="Sort leads by"
           >
             <option value="createdAt">Sort: Date Created</option>
             <option value="lastInteractionAt">Sort: Last Activity</option>
@@ -132,9 +146,11 @@ export function LeadFilters({ filters, onChange, onReset }: LeadFiltersProps) {
             <option value="stage">Sort: Stage</option>
           </Select>
           <Select
+            name="sortOrder"
             value={filters.sortOrder}
             onChange={(e) => update("sortOrder", e.target.value)}
             className="h-8 text-xs"
+            aria-label="Sort direction"
           >
             <option value="desc">Order: Descending</option>
             <option value="asc">Order: Ascending</option>

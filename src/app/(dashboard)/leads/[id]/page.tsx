@@ -86,7 +86,7 @@ export default function LeadDetailPage() {
       if (!res.ok) throw new Error("Failed to save notes");
       setNotesSavedNotice(true);
       setTimeout(() => setNotesSavedNotice(false), 2500);
-    } catch (err) {
+    } catch {
       alert("Failed to save notes");
     } finally {
       setSavingNotes(false);
@@ -103,7 +103,7 @@ export default function LeadDetailPage() {
       });
       if (!res.ok) throw new Error("Failed to update stage");
       await fetchLead();
-    } catch (err) {
+    } catch {
       alert("Failed to update pipeline stage");
     } finally {
       setUpdatingStage(false);
@@ -128,7 +128,7 @@ export default function LeadDetailPage() {
       setNoteTitle("");
       setNoteDescription("");
       await fetchLead();
-    } catch (err) {
+    } catch {
       alert("Failed to add interaction note");
     } finally {
       setAddingNote(false);
@@ -152,13 +152,13 @@ export default function LeadDetailPage() {
     return (
       <div className="space-y-4 max-w-xl mx-auto py-12 text-center">
         <EmptyState
-          icon={<AlertCircle className="h-6 w-6 text-rose-500" />}
+          icon={<AlertCircle className="h-6 w-6 text-rose-500" aria-hidden="true" />}
           title="Lead Not Found"
           description={error || "The requested prospect profile does not exist or you do not have permission to access it."}
           action={
             <Link href="/leads">
               <Button size="sm" variant="outline">
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                 Back to Leads Database
               </Button>
             </Link>
@@ -176,12 +176,12 @@ export default function LeadDetailPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/leads">
-            <Button variant="outline" size="icon" className="h-8 w-8" title="Back to Leads">
-              <ArrowLeft className="h-4 w-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Back to Leads list">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Button>
           </Link>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-foreground tracking-tight">
                 {lead.fullName}
               </h1>
@@ -198,10 +198,12 @@ export default function LeadDetailPage() {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-medium">Stage:</span>
           <Select
+            name="leadStageQuickSwitch"
             value={lead.stage}
             disabled={updatingStage}
             onChange={(e) => handleStageChange(e.target.value as LeadStage)}
             className="h-8 text-xs w-44"
+            aria-label="Change lead pipeline stage"
           >
             <option value={LeadStage.NEW}>NEW</option>
             <option value={LeadStage.CONTACTED}>CONTACTED</option>
@@ -242,8 +244,8 @@ export default function LeadDetailPage() {
                         href={`mailto:${lead.email}`}
                         className="text-primary font-medium hover:underline flex items-center gap-1.5"
                       >
-                        <Mail className="h-3.5 w-3.5 shrink-0" />
-                        {lead.email}
+                        <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <span>{lead.email}</span>
                       </a>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -259,8 +261,8 @@ export default function LeadDetailPage() {
                         href={`tel:${lead.phone}`}
                         className="text-primary font-medium hover:underline flex items-center gap-1.5"
                       >
-                        <Phone className="h-3.5 w-3.5 shrink-0" />
-                        {lead.phone}
+                        <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <span>{lead.phone}</span>
                       </a>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -271,8 +273,8 @@ export default function LeadDetailPage() {
                 <div className="space-y-1">
                   <span className="text-muted-foreground font-medium">Location</span>
                   <div className="text-foreground font-medium flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    {lead.location || "—"}
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                    <span>{lead.location || "—"}</span>
                   </div>
                 </div>
 
@@ -286,7 +288,7 @@ export default function LeadDetailPage() {
                         rel="noopener noreferrer"
                         className="text-primary font-medium hover:underline flex items-center gap-1.5"
                       >
-                        <Linkedin className="h-3.5 w-3.5 shrink-0 text-[#0077b5]" />
+                        <Linkedin className="h-3.5 w-3.5 shrink-0 text-[#0077b5]" aria-hidden="true" />
                         <span className="truncate max-w-[200px]">{lead.linkedInUrl}</span>
                       </a>
                     ) : (
@@ -305,7 +307,7 @@ export default function LeadDetailPage() {
                         rel="noopener noreferrer"
                         className="text-primary font-medium hover:underline flex items-center gap-1.5"
                       >
-                        <Globe className="h-3.5 w-3.5 shrink-0" />
+                        <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                         <span className="truncate max-w-[200px]">{lead.website}</span>
                       </a>
                     ) : (
@@ -330,22 +332,27 @@ export default function LeadDetailPage() {
                 disabled={savingNotes}
                 className="gap-1.5 text-xs h-8"
               >
-                <Save className="h-3.5 w-3.5" />
-                {savingNotes ? "Saving..." : "Save Notes"}
+                <Save className="h-3.5 w-3.5" aria-hidden="true" />
+                {savingNotes ? "Saving…" : "Save Notes"}
               </Button>
             </CardHeader>
             <CardContent>
               {notesSavedNotice && (
-                <div className="flex items-center gap-1.5 mb-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Notes saved to database
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="flex items-center gap-1.5 mb-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Notes saved to database.</span>
                 </div>
               )}
               <textarea
                 rows={4}
+                name="leadNotes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add background intelligence or notes about this prospect..."
+                placeholder="Add background intelligence or notes about this prospect…"
                 className="w-full rounded-md border border-input bg-card p-3 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </CardContent>
@@ -365,20 +372,22 @@ export default function LeadDetailPage() {
               <Card className="p-4 bg-muted/20">
                 <form onSubmit={handleAddInteraction} className="space-y-3">
                   <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                    <PlusCircle className="h-3.5 w-3.5 text-primary" />
+                    <PlusCircle className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                     Log Interaction or Note
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input
                       type="text"
-                      placeholder="Title (e.g. Discovery Call, Sent Proposal)..."
+                      name="noteTitle"
+                      placeholder="Title (e.g. Discovery Call, Sent Proposal)…"
                       value={noteTitle}
                       onChange={(e) => setNoteTitle(e.target.value)}
                       className="h-8 rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     />
                     <input
                       type="text"
-                      placeholder="Details / outcome description (optional)..."
+                      name="noteDescription"
+                      placeholder="Details / outcome description (optional)…"
                       value={noteDescription}
                       onChange={(e) => setNoteDescription(e.target.value)}
                       className="h-8 rounded-md border border-input bg-card px-2.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -386,7 +395,7 @@ export default function LeadDetailPage() {
                   </div>
                   <div className="flex justify-end">
                     <Button type="submit" size="sm" disabled={addingNote || !noteTitle.trim()} className="h-7 text-xs">
-                      {addingNote ? "Logging..." : "Log Note"}
+                      {addingNote ? "Logging…" : "Log Note"}
                     </Button>
                   </div>
                 </form>
@@ -396,7 +405,7 @@ export default function LeadDetailPage() {
               <div className="space-y-2.5">
                 {!lead.interactions || lead.interactions.length === 0 ? (
                   <EmptyState
-                    icon={<Clock className="h-5 w-5" />}
+                    icon={<Clock className="h-5 w-5" aria-hidden="true" />}
                     title="No interactions logged"
                     description="Status updates, calls, and email messages will automatically form an audit timeline here."
                     className="py-8"
@@ -407,13 +416,13 @@ export default function LeadDetailPage() {
                       key={interaction.id}
                       className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card text-xs"
                     >
-                      <div className="h-2 w-2 rounded-full bg-primary mt-1 shrink-0" />
+                      <div className="h-2 w-2 rounded-full bg-primary mt-1 shrink-0" aria-hidden="true" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-foreground">
                             {interaction.title}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-muted-foreground tabular-nums">
                             {formatRelativeTime(interaction.createdAt)}
                           </span>
                         </div>
@@ -439,7 +448,7 @@ export default function LeadDetailPage() {
                 <CardContent>
                   {!lead.emailMessages || lead.emailMessages.length === 0 ? (
                     <EmptyState
-                      icon={<Send className="h-5 w-5" />}
+                      icon={<Send className="h-5 w-5" aria-hidden="true" />}
                       title="No outreach sent to this prospect yet"
                       description="When campaigns are dispatched or 1-to-1 emails sent, delivery and reply logs will appear here."
                       className="py-8 border-0"
@@ -468,7 +477,7 @@ export default function LeadDetailPage() {
                 <CardContent>
                   {!lead.meetings || lead.meetings.length === 0 ? (
                     <EmptyState
-                      icon={<Calendar className="h-5 w-5" />}
+                      icon={<Calendar className="h-5 w-5" aria-hidden="true" />}
                       title="No meetings booked with this prospect"
                       description="Booking links and synced Google Calendar events will be listed here."
                       className="py-8 border-0"
@@ -478,7 +487,7 @@ export default function LeadDetailPage() {
                       {lead.meetings.map((m: any) => (
                         <div key={m.id} className="p-3 border border-border rounded-lg text-xs">
                           <span className="font-semibold text-foreground">{m.title}</span>
-                          <span className="text-muted-foreground block">{formatDate(m.startTime)}</span>
+                          <span className="text-muted-foreground block tabular-nums">{formatDate(m.startTime)}</span>
                         </div>
                       ))}
                     </div>
@@ -493,8 +502,8 @@ export default function LeadDetailPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 Company Overview
               </CardTitle>
             </CardHeader>
@@ -525,7 +534,7 @@ export default function LeadDetailPage() {
                   {lead.company.companySize && (
                     <div>
                       <span className="text-muted-foreground font-medium">Company Size</span>
-                      <div className="text-foreground">{lead.company.companySize} employees</div>
+                      <div className="text-foreground tabular-nums">{lead.company.companySize} employees</div>
                     </div>
                   )}
 
@@ -544,15 +553,15 @@ export default function LeadDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Future AI Actions Card */}
+          {/* AI Actions Card */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs flex items-center gap-1.5 text-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                 AI Personalization Engine
               </CardTitle>
               <CardDescription className="text-[11px]">
-                Research company profile and draft tailored outreach.
+                Research company profile and draft tailored outreach pitches.
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ArrowRight, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
 
 export interface FunnelItem {
   stage: string;
@@ -11,23 +11,34 @@ export interface FunnelItem {
   count: number;
 }
 
+const STAGE_BAR_COLORS: Record<string, string> = {
+  NEW: "bg-sky-500",
+  CONTACTED: "bg-indigo-500",
+  REPLIED: "bg-violet-500",
+  POSITIVE_REPLY: "bg-amber-500",
+  MEETING_SCHEDULED: "bg-emerald-500",
+  CLIENT: "bg-emerald-600",
+};
+
 export function FunnelChart({ funnel }: { funnel: FunnelItem[] }) {
   const total = funnel.reduce((acc, curr) => acc + curr.count, 0);
 
   return (
-    <Card className="h-full">
+    <Card className="h-full flex flex-col">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Lead Conversion Funnel</CardTitle>
-            <CardDescription>
-              Prospect progression from discovery to closed contract
+            <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+              Lead Conversion Funnel
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Prospect progression from discovery to closed client
             </CardDescription>
           </div>
-          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Filter className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
         </div>
       </CardHeader>
-      <CardContent className="pt-2">
+      <CardContent className="pt-2 flex-1 flex flex-col justify-center">
         {total === 0 ? (
           <EmptyState
             title="Funnel is waiting for data"
@@ -35,25 +46,25 @@ export function FunnelChart({ funnel }: { funnel: FunnelItem[] }) {
             className="py-10 border-0 bg-transparent"
           />
         ) : (
-          <div className="space-y-2.5">
-            {funnel.map((step, idx) => {
+          <div className="space-y-3">
+            {funnel.map((step) => {
               const maxCount = Math.max(...funnel.map((f) => f.count), 1);
               const percentage = total > 0 ? (step.count / maxCount) * 100 : 0;
+              const barColor = STAGE_BAR_COLORS[step.stage] || "bg-primary";
 
               return (
                 <div key={step.stage} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-foreground flex items-center gap-1.5">
-                      <span className="text-muted-foreground text-[10px]">0{idx + 1}.</span>
+                    <span className="font-medium text-foreground tracking-tight">
                       {step.label}
                     </span>
-                    <span className="font-semibold text-foreground">
-                      {step.count}
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {step.count.toLocaleString()}
                     </span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      className={`h-full rounded-full ${barColor} transition-all duration-500`}
                       style={{ width: `${Math.max(percentage, step.count > 0 ? 4 : 0)}%` }}
                     />
                   </div>

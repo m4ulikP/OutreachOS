@@ -35,42 +35,49 @@ export function KpiCards({
       value: totalLeads.toLocaleString(),
       subtext: totalLeads === 0 ? "No leads in pipeline" : "Active in database",
       icon: Users,
+      trend: totalLeads > 0 ? "Active" : undefined,
     },
     {
       title: "Emails Sent",
       value: emailsSent.toLocaleString(),
-      subtext: emailsSent === 0 ? "No campaigns dispatched" : "Outreach volume",
+      subtext: emailsSent === 0 ? "Awaiting first dispatch" : "Outreach volume",
       icon: Mail,
+      trend: undefined,
     },
     {
       title: "Reply Rate",
       value: `${replyRate.toFixed(1)}%`,
-      subtext: emailsSent === 0 ? "Awaiting first campaign" : "Overall response rate",
+      subtext: emailsSent === 0 ? "No replies yet" : "Overall response rate",
       icon: MessageSquareReply,
+      trend: replyRate > 0 ? `${replyRate.toFixed(1)}%` : undefined,
     },
     {
       title: "Positive Replies",
       value: positiveReplies.toLocaleString(),
       subtext: positiveReplies === 0 ? "Qualified interest" : "Warm sales signals",
       icon: CheckCircle2,
+      trend: positiveReplies > 0 ? `${positiveReplies} warm` : undefined,
     },
     {
       title: "Meetings Booked",
       value: meetingsBooked.toLocaleString(),
-      subtext: meetingsBooked === 0 ? "No meetings booked" : "Scheduled calls",
+      subtext: meetingsBooked === 0 ? "No calls scheduled" : "Discovery calls",
       icon: Calendar,
+      trend: meetingsBooked > 0 ? `${meetingsBooked} calls` : undefined,
     },
     {
       title: "Clients Closed",
       value: clientsClosed.toLocaleString(),
-      subtext: clientsClosed === 0 ? "Target: 1st client" : "Won contracts",
+      subtext: clientsClosed === 0 ? "Target: 1st client" : "Won engagements",
       icon: Briefcase,
+      trend: clientsClosed > 0 ? `${clientsClosed} won` : undefined,
     },
     {
       title: "Monthly Conversion",
       value: `${monthlyConversionRate.toFixed(1)}%`,
-      subtext: totalLeads === 0 ? "Lead to client ratio" : "End-to-end conversion",
+      subtext: totalLeads === 0 ? "Lead-to-client ratio" : "End-to-end velocity",
       icon: TrendingUp,
+      trend: monthlyConversionRate > 0 ? "Healthy" : undefined,
     },
   ];
 
@@ -79,19 +86,24 @@ export function KpiCards({
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <Card key={card.title} className="p-3.5">
+          <Card key={card.title} className="p-3.5 transition-colors hover:border-border/80">
             <CardContent className="p-0">
-              <div className="flex items-center justify-between text-muted-foreground mb-1.5">
-                <span className="text-[11px] font-medium tracking-tight truncate">
+              <div className="flex items-center justify-between text-muted-foreground mb-1">
+                <span className="text-[11px] font-medium tracking-tight text-muted-foreground truncate">
                   {card.title}
                 </span>
-                <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
               </div>
-              <div className="text-xl font-bold tracking-tight text-foreground">
+              <div className="text-xl font-bold tracking-tight text-foreground tabular-nums">
                 {card.value}
               </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                {card.subtext}
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
+                <span className="truncate">{card.subtext}</span>
+                {card.trend && (
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 shrink-0 ml-1">
+                    {card.trend}
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>

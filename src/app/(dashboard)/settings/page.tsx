@@ -7,14 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  User,
-  Sparkles,
-  Mail,
   Calendar,
-  Search,
-  Sliders,
-  Eye,
-  Bell,
   CheckCircle2,
   Lock,
 } from "lucide-react";
@@ -29,21 +22,25 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 pb-16 max-w-5xl">
+    <div className="space-y-5 pb-16 max-w-5xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
           Settings & Integrations
         </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Manage your account profile, provider API keys, calendar sync, and tracking preferences
+          Manage your account profile, provider API keys, calendar sync, and outreach preferences
         </p>
       </div>
 
       {savedNotice && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-400 font-medium animate-in fade-in">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>Settings saved successfully.</span>
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-400 font-medium animate-in fade-in"
+        >
+          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>Configuration saved successfully.</span>
         </div>
       )}
 
@@ -69,10 +66,33 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSave} className="space-y-4 max-w-lg text-xs">
-                <Input label="Full Name" defaultValue="Alex Vance" />
-                <Input label="Email Address" type="email" defaultValue="alex@outreachos.dev" />
-                <Input label="Professional Title" defaultValue="Freelance Full-Stack Consultant" />
-                <Input label="Portfolio / Website" defaultValue="https://alexvance.dev" />
+                <Input
+                  label="Full Name"
+                  name="fullName"
+                  autoComplete="name"
+                  defaultValue="Alex Vance"
+                />
+                <Input
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  spellCheck={false}
+                  defaultValue="alex@outreachos.dev"
+                />
+                <Input
+                  label="Professional Title"
+                  name="title"
+                  defaultValue="Freelance Full-Stack Consultant"
+                />
+                <Input
+                  label="Portfolio / Website"
+                  name="website"
+                  type="url"
+                  autoComplete="url"
+                  spellCheck={false}
+                  defaultValue="https://alexvance.dev"
+                />
                 <Button type="submit" size="sm">Save Profile</Button>
               </form>
             </CardContent>
@@ -85,31 +105,39 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-sm">AI Personalization Provider</CardTitle>
               <CardDescription>
-                Configure OpenAI or any OpenAI-compatible API endpoint for company research and pitch drafting
+                Configure OpenAI or any OpenAI-compatible API endpoint for company research and tailored outreach
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSave} className="space-y-4 max-w-lg text-xs">
                 <Input
                   label="Provider Base URL"
+                  name="aiBaseUrl"
+                  spellCheck={false}
                   defaultValue="https://api.openai.com/v1"
                   placeholder="https://api.openai.com/v1"
                 />
                 <Input
                   label="Model Identifier"
+                  name="aiModel"
+                  spellCheck={false}
                   defaultValue="gpt-4o-mini"
-                  placeholder="gpt-4o, claude-3-5-sonnet, or custom"
+                  placeholder="gpt-4o, claude-3-5-sonnet, or custom…"
                 />
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-foreground">
+                  <label className="block text-xs font-medium text-foreground" htmlFor="aiApiKey">
                     API Key (Stored securely server-side)
                   </label>
                   <div className="relative">
                     <Input
+                      id="aiApiKey"
+                      name="aiApiKey"
                       type="password"
+                      autoComplete="off"
+                      spellCheck={false}
                       placeholder="sk-proj-••••••••••••••••••••"
                     />
-                    <Lock className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Lock className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Keys are encrypted at rest and never exposed to client-side scripts.
@@ -130,11 +158,41 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSave} className="space-y-4 max-w-lg text-xs">
-                <Input label="SMTP Host" placeholder="smtp.resend.com or smtp.gmail.com" />
-                <Input label="SMTP Port" placeholder="587" defaultValue="587" />
-                <Input label="Username / API User" placeholder="resend or user@domain.com" />
-                <Input label="Password / Secret Key" type="password" placeholder="••••••••••••" />
-                <Input label="From Email Address" placeholder="alex@yourdomain.com" />
+                <Input
+                  label="SMTP Host"
+                  name="smtpHost"
+                  spellCheck={false}
+                  placeholder="smtp.resend.com or smtp.gmail.com…"
+                />
+                <Input
+                  label="SMTP Port"
+                  name="smtpPort"
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="587"
+                  defaultValue="587"
+                />
+                <Input
+                  label="Username / API User"
+                  name="smtpUser"
+                  spellCheck={false}
+                  placeholder="resend or user@domain.com…"
+                />
+                <Input
+                  label="Password / Secret Key"
+                  name="smtpPassword"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="••••••••••••"
+                />
+                <Input
+                  label="From Email Address"
+                  name="smtpFrom"
+                  type="email"
+                  spellCheck={false}
+                  placeholder="alex@yourdomain.com…"
+                />
                 <Button type="submit" size="sm">Save Email Configuration</Button>
               </form>
             </CardContent>
@@ -151,11 +209,11 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground leading-relaxed">
                 Connect your Google Calendar account via OAuth 2.0 to sync meetings into your pipeline.
               </p>
               <Button variant="outline" size="sm" className="gap-2">
-                <Calendar className="h-4 w-4 text-primary" />
+                <Calendar className="h-4 w-4 text-primary" aria-hidden="true" />
                 Connect Google Calendar
               </Button>
             </CardContent>
@@ -173,13 +231,20 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSave} className="space-y-4 max-w-lg text-xs">
-                <Select label="Supported Provider">
+                <Select label="Supported Provider" name="leadProviderType">
                   <option value="apollo">Apollo.io API</option>
                   <option value="hunter">Hunter.io API</option>
                   <option value="clearbit">Clearbit / HubSpot</option>
                   <option value="custom">Custom Enterprise Data Endpoint</option>
                 </Select>
-                <Input label="Provider API Key" type="password" placeholder="api_key_••••••••••••" />
+                <Input
+                  label="Provider API Key"
+                  name="leadProviderKey"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="api_key_••••••••••••"
+                />
                 <Button type="submit" size="sm">Save Lead Provider</Button>
               </form>
             </CardContent>
@@ -195,9 +260,21 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSave} className="space-y-4 max-w-lg text-xs">
-                <Input label="Max New Emails Per Day" type="number" defaultValue="30" />
-                <Input label="Delay Between Emails (Seconds)" type="number" defaultValue="120" />
-                <Select label="Default Follow-up Delay">
+                <Input
+                  label="Max New Emails Per Day"
+                  name="maxEmailsPerDay"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue="30"
+                />
+                <Input
+                  label="Delay Between Emails (Seconds)"
+                  name="delayBetweenEmails"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue="120"
+                />
+                <Select label="Default Follow-up Delay" name="followUpDelayDays">
                   <option value="3">3 Days</option>
                   <option value="4">4 Days</option>
                   <option value="7">7 Days</option>
@@ -217,15 +294,15 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               <div className="space-y-2">
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" defaultChecked className="rounded border-input" />
                   <span className="font-medium text-foreground">Enable Open Tracking Pixels</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" defaultChecked className="rounded border-input" />
                   <span className="font-medium text-foreground">Enable Click Tracking on Links</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" defaultChecked className="rounded border-input" />
                   <span className="font-medium text-foreground">Include RFC-8058 One-Click Unsubscribe Header</span>
                 </label>
@@ -244,15 +321,15 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               <div className="space-y-2">
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" defaultChecked className="rounded border-input" />
                   <span className="font-medium text-foreground">Email alert on positive prospect reply</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" defaultChecked className="rounded border-input" />
                   <span className="font-medium text-foreground">Email alert when meeting is scheduled</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" className="rounded border-input" />
                   <span className="font-medium text-foreground">Weekly pipeline performance summary</span>
                 </label>
