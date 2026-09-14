@@ -1,0 +1,432 @@
+// OutreachOS Prisma Schema
+// PostgreSQL Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------------
+// ENUMS
+// --------------------------------------------------------
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  FOLLOW_UP
+  REPLIED
+  POSITIVE_REPLY
+  MEETING_SCHEDULED
+  CLIENT
+  CLOSED_LOST
+}
+
+enum TagType {
+  HOT
+  WARM
+  COLD
+  FOLLOW_UP_NEEDED
+  CLIENT
+  CUSTOM
+}
+
+enum InteractionType {
+  NOTE
+  STAGE_CHANGE
+  EMAIL_SENT
+  REPLY_RECEIVED
+  CALL
+  MEETING
+  AI_RESEARCH
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum CampaignLeadStatus {
+  PENDING
+  SCHEDULED
+  SENT
+  REPLIED
+  BOUNCED
+  UNSUBSCRIBED
+}
+
+enum EmailEventType {
+  DELIVERED
+  OPENED
+  CLICKED
+  REPLIED
+  BOUNCED
+  UNSUBSCRIBED
+}
+
+enum FollowUpStatus {
+  SCHEDULED
+  SENT
+  CANCELLED
+  SKIPPED
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum GenerationType {
+  COLD_EMAIL
+  LINKEDIN_MESSAGE
+  SUBJECT_LINE
+  FOLLOW_UP
+}
+
+enum IntegrationProvider {
+  OPENAI
+  GOOGLE_CALENDAR
+  EMAIL_SMTP
+  LEAD_SOURCE
+}
+
+// --------------------------------------------------------
+// CORE USER & MULTI-TENANCY
+// --------------------------------------------------------
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String?
+  avatarUrl     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  leads         Lead[]
+  companies     Company[]
+  tags          LeadTag[]
+  interactions  LeadInteraction[]
+  campaigns     Campaign[]
+  messages      EmailMessage[]
+  meetings      Meeting[]
+  aiResearches  AIResearch[]
+  aiGenerations AIGeneration[]
+  integrations  Integration[]
+
+  @@map("users")
+}
+
+// --------------------------------------------------------
+// COMPANY & LEAD MODELS
+// --------------------------------------------------------
+
+model Company {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  domain       String?
+  website      String?
+  linkedInUrl  String?
+  industry     String?
+  companySize  String?
+  location     String?
+  description  String?       @db.Text
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  leads        Lead[]
+  aiResearches AIResearch[]
+
+  @@index([userId, name])
+  @@index([userId, domain])
+  @@map("companies")
+}
+
+model Lead {
+  id                String              @id @default(cuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId         String?
+  company           Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  firstName         String?
+  lastName          String?
+  fullName          String?
+  jobTitle          String?
+  email             String?
+  phone             String?
+  website           String?
+  linkedInUrl       String?
+  companySize       String?
+  industry          String?
+  location          String?
+  source            String?
+  stage             LeadStage           @default(NEW)
+  notes             String?             @db.Text
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  lastInteractionAt DateTime?
+
+  // Relations
+  tagAssignments    LeadTagAssignment[]
+  interactions      LeadInteraction[]
+  campaignLeads     CampaignLead[]
+  emailMessages     EmailMessage[]
+  followUps         FollowUp[]
+  meetings          Meeting[]
+  aiResearches      AIResearch[]
+  aiGenerations     AIGeneration[]
+
+  @@index([userId, email])
+  @@index([userId, linkedInUrl])
+  @@index([userId, stage])
+  @@index([userId, createdAt])
+  @@index([userId, lastInteractionAt])
+  @@index([companyId])
+  @@map("leads")
+}
+
+// --------------------------------------------------------
+// RELATIONAL TAGS & TEMPERATURE
+// --------------------------------------------------------
+
+model LeadTag {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        TagType             @default(CUSTOM)
+  color       String?             // e.g. hex code or badge theme
+  createdAt   DateTime            @default(now())
+
+  assignments LeadTagAssignment[]
+
+  @@unique([userId, name])
+  @@map("lead_tags")
+}
+
+model LeadTagAssignment {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       LeadTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([leadId, tagId])
+  @@index([leadId])
+  @@index([tagId])
+  @@map("lead_tag_assignments")
+}
+
+// --------------------------------------------------------
+// INTERACTIONS & AUDIT TIMELINE
+// --------------------------------------------------------
+
+model LeadInteraction {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId      String
+  lead        Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  type        InteractionType
+  title       String
+  description String?         @db.Text
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+
+  @@index([userId, leadId])
+  @@index([leadId, createdAt])
+  @@map("lead_interactions")
+}
+
+// --------------------------------------------------------
+// CAMPAIGNS & AUTOMATION (FUTURE READINESS)
+// --------------------------------------------------------
+
+model Campaign {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  status        CampaignStatus  @default(DRAFT)
+  subject       String?
+  bodyTemplate  String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  leads         CampaignLead[]
+  messages      EmailMessage[]
+  followUps     FollowUp[]
+
+  @@index([userId, status])
+  @@map("campaigns")
+}
+
+model CampaignLead {
+  id          String             @id @default(cuid())
+  campaignId  String
+  campaign    Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId      String
+  lead        Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status      CampaignLeadStatus @default(PENDING)
+  sentAt      DateTime?
+  repliedAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([campaignId, leadId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@map("campaign_leads")
+}
+
+// --------------------------------------------------------
+// EMAIL MESSAGES & EVENTS
+// --------------------------------------------------------
+
+model EmailMessage {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId      String
+  lead        Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  subject     String
+  body        String       @db.Text
+  sentAt      DateTime?
+  createdAt   DateTime     @default(now())
+
+  events      EmailEvent[]
+
+  @@index([userId, leadId])
+  @@map("email_messages")
+}
+
+model EmailEvent {
+  id          String         @id @default(cuid())
+  messageId   String
+  message     EmailMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type        EmailEventType
+  timestamp   DateTime       @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  @@index([messageId, type])
+  @@map("email_events")
+}
+
+model FollowUp {
+  id           String         @id @default(cuid())
+  campaignId   String?
+  campaign     Campaign?      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId       String
+  lead         Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  stepNumber   Int
+  delayDays    Int
+  status       FollowUpStatus @default(SCHEDULED)
+  scheduledFor DateTime
+  sentAt       DateTime?
+  createdAt    DateTime       @default(now())
+
+  @@index([leadId, status])
+  @@map("follow_ups")
+}
+
+// --------------------------------------------------------
+// MEETINGS & CALENDAR
+// --------------------------------------------------------
+
+model Meeting {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId          String?
+  lead            Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  title           String
+  description     String?       @db.Text
+  startTime       DateTime
+  endTime         DateTime
+  status          MeetingStatus @default(SCHEDULED)
+  meetUrl         String?
+  calendarEventId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([userId, startTime])
+  @@index([leadId])
+  @@map("meetings")
+}
+
+// --------------------------------------------------------
+// AI PERSONALIZATION & RESEARCH
+// --------------------------------------------------------
+
+model AIResearch {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId            String?
+  lead              Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  companyId         String?
+  company           Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  rawData           String?  @db.Text
+  verifiedFacts     Json?
+  keyPainPoints     Json?
+  personalizedHooks Json?
+  createdAt         DateTime @default(now())
+
+  @@index([userId, leadId])
+  @@map("ai_researches")
+}
+
+model AIGeneration {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId        String?
+  lead          Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  type          GenerationType
+  prompt        String         @db.Text
+  generatedText String         @db.Text
+  editedText    String?        @db.Text
+  wasSent       Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+
+  @@index([userId, leadId])
+  @@map("ai_generations")
+}
+
+// --------------------------------------------------------
+// INTEGRATIONS & PROVIDERS
+// --------------------------------------------------------
+
+model Integration {
+  id           String              @id @default(cuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     IntegrationProvider
+  isConnected  Boolean             @default(false)
+  config       Json?
+  encryptedKey String?             // Server-side encrypted, never exposed
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@unique([userId, provider])
+  @@map("integrations")
+}
