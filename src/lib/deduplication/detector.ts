@@ -87,10 +87,21 @@ export function checkDuplicate(
     // Priority 3: Name + Company / Domain
     if (normCompositeKey) {
       const candidateFullName = candidate.fullName || null;
-      const candidateCompany = candidate.companyDomain || candidate.companyName || null;
-      const candidateComposite = createNameCompanyKey(candidateFullName, candidateCompany);
+      const candidateKeys = [
+        createNameCompanyKey(candidateFullName, candidate.companyName),
+        createNameCompanyKey(candidateFullName, candidate.companyDomain),
+      ].filter(Boolean);
 
-      if (candidateComposite && candidateComposite === normCompositeKey) {
+      const incomingKeys = [
+        createNameCompanyKey(incomingFullName, incoming.companyName),
+        createNameCompanyKey(incomingFullName, incoming.companyDomain),
+      ].filter(Boolean);
+
+      const hasMatch = incomingKeys.some((inKey) =>
+        candidateKeys.some((candKey) => candKey === inKey)
+      );
+
+      if (hasMatch) {
         return {
           isDuplicate: true,
           status: "ALREADY_EXISTS",

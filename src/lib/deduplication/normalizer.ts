@@ -99,7 +99,8 @@ export function normalizeLinkedInUrl(url: string | null | undefined): string | n
 export function normalizeDomain(domainOrUrl: string | null | undefined): string | null {
   if (!domainOrUrl) return null;
   let cleaned = domainOrUrl.trim().toLowerCase();
-  if (!cleaned) return null;
+  if (!cleaned || cleaned.includes(" ")) return null;
+  if (!cleaned.includes(".")) return null;
 
   if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
     cleaned = "https://" + cleaned;
@@ -119,14 +120,22 @@ export function normalizeDomain(domainOrUrl: string | null | undefined): string 
 /**
  * Normalizes a human or company name for fuzzy matching:
  * - Lowercases, removes punctuation, trims excessive spaces
+ * - Strips common corporate entity suffixes (inc, llc, corp, ltd, co)
  */
 export function normalizeName(name: string | null | undefined): string | null {
   if (!name) return null;
-  const cleaned = name
+  let cleaned = name
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, "") // Strip symbols and punctuation
     .replace(/\s+/g, " ")
     .trim();
+
+  // Strip trailing legal suffixes: inc, llc, corp, ltd, co, company
+  cleaned = cleaned
+    .replace(/\b(inc|incorporated|llc|ltd|limited|corp|corporation|co|company)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
   return cleaned || null;
 }
 
