@@ -47,10 +47,10 @@ export default function AnalyticsPage() {
     <div className="space-y-6 pb-12 max-w-6xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Sales & Outreach Analytics
+          Analytics
         </h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Real-time metrics derived directly from verified database events
+        <p className="text-xs text-foreground-muted mt-0.5">
+          Conversion metrics and outreach activity derived directly from database events
         </p>
       </div>
 

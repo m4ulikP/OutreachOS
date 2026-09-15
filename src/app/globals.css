@@ -4,74 +4,124 @@
 
 :root {
   color-scheme: light;
-  --background: #f8fafc;
-  --foreground: #0f172a;
 
-  --card: #ffffff;
-  --card-foreground: #0f172a;
+  /* Freelancer Sales Studio - Light Mode Tokens */
+  --background: #F4F1EA;
+  --foreground: #191816;
+  --foreground-muted: #68645C;
+  --foreground-subtle: #8A857B;
 
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --surface: #FBF9F4;
+  --surface-elevated: #FFFFFF;
+  --surface-foreground: #191816;
 
-  --primary: #0f172a;
-  --primary-foreground: #f8fafc;
-  --primary-hover: #1e293b;
+  --card: #FBF9F4;
+  --card-foreground: #191816;
 
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
+  --popover: #FFFFFF;
+  --popover-foreground: #191816;
 
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  /* Primary Brand: Burnt Orange */
+  --primary: #C85F32;
+  --primary-hover: #B55227;
+  --primary-foreground: #FFFFFF;
+  --primary-soft: #FAEDE5;
 
-  --accent: #f8fafc;
-  --accent-foreground: #0f172a;
+  --secondary: #EBE7DD;
+  --secondary-foreground: #191816;
 
-  --destructive: #ef4444;
-  --destructive-foreground: #f8fafc;
+  --muted: #EDE9E0;
+  --muted-foreground: #68645C;
 
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #0f172a;
+  --accent: #EBE7DD;
+  --accent-foreground: #191816;
 
-  --radius: 0.5rem;
+  /* Semantic Signal Tokens (Light Mode - Accessible contrast >= 4.5:1) */
+  --success: #3F703F;
+  --success-foreground: #FFFFFF;
+  --success-tint: rgba(63, 112, 63, 0.10);
 
-  --scrollbar-track: #f1f5f9;
-  --scrollbar-thumb: #cbd5e1;
+  --warning: #8F6623;
+  --warning-foreground: #FFFFFF;
+  --warning-tint: rgba(143, 102, 35, 0.10);
+
+  --danger: #A63830;
+  --danger-foreground: #FFFFFF;
+  --danger-tint: rgba(166, 56, 48, 0.10);
+
+  --info: #386782;
+  --info-foreground: #FFFFFF;
+  --info-tint: rgba(56, 103, 130, 0.10);
+
+  --border: #DCD7CC;
+  --border-subtle: #E8E4D9;
+  --input: #DCD7CC;
+  --ring: #C85F32;
+
+  --radius: 0.375rem;
+
+  --scrollbar-track: #F4F1EA;
+  --scrollbar-thumb: #D5CFBF;
 }
 
 .dark {
   color-scheme: dark;
-  --background: #09090b;
-  --foreground: #f4f4f5;
 
-  --card: #121215;
-  --card-foreground: #f4f4f5;
+  /* Freelancer Sales Studio - Dark Mode Tokens */
+  --background: #151513;
+  --foreground: #F2EFE7;
+  --foreground-muted: #A9A59B;
+  --foreground-subtle: #77736B;
 
-  --popover: #121215;
-  --popover-foreground: #f4f4f5;
+  --surface: #1D1C19;
+  --surface-elevated: #24231F;
+  --surface-foreground: #F2EFE7;
 
-  --primary: #f4f4f5;
-  --primary-foreground: #09090b;
-  --primary-hover: #e4e4e7;
+  --card: #1D1C19;
+  --card-foreground: #F2EFE7;
 
-  --secondary: #18181b;
-  --secondary-foreground: #f4f4f5;
+  --popover: #24231F;
+  --popover-foreground: #F2EFE7;
 
-  --muted: #1e1e24;
-  --muted-foreground: #a1a1aa;
+  /* Primary Brand: Burnt Orange */
+  --primary: #D96C3A;
+  --primary-hover: #E27B4B;
+  --primary-foreground: #FFFFFF;
+  --primary-soft: #2A211C;
 
-  --accent: #1e1e24;
-  --accent-foreground: #f4f4f5;
+  --secondary: #24231F;
+  --secondary-foreground: #F2EFE7;
 
-  --destructive: #f87171;
-  --destructive-foreground: #09090b;
+  --muted: #24231F;
+  --muted-foreground: #A9A59B;
 
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #d4d4d8;
+  --accent: #24231F;
+  --accent-foreground: #F2EFE7;
 
-  --scrollbar-track: #121215;
-  --scrollbar-thumb: #27272a;
+  /* Semantic Signal Tokens (Dark Mode) */
+  --success: #78A878;
+  --success-foreground: #151513;
+  --success-tint: rgba(120, 168, 120, 0.12);
+
+  --warning: #C49A58;
+  --warning-foreground: #151513;
+  --warning-tint: rgba(196, 154, 88, 0.12);
+
+  --danger: #C9655D;
+  --danger-foreground: #151513;
+  --danger-tint: rgba(201, 101, 93, 0.12);
+
+  --info: #7896A8;
+  --info-foreground: #151513;
+  --info-tint: rgba(120, 150, 168, 0.12);
+
+  --border: #35332D;
+  --border-subtle: #23221E;
+  --input: #35332D;
+  --ring: #D96C3A;
+
+  --scrollbar-track: #151513;
+  --scrollbar-thumb: #35332D;
 }
 
 * {
@@ -86,17 +136,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Modern Web Guidance: Scrollbar styling */
+/* Scrollbar styling */
 html {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-width: thin;
 }
 
-/* Modern Web Guidance: Forms validation feedback */
+/* Forms validation feedback */
 input:user-invalid,
 select:user-invalid,
 textarea:user-invalid {
-  border-color: var(--destructive) !important;
+  border-color: var(--danger) !important;
 }
 
 /* Focus visible styling */
@@ -109,7 +159,8 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
-/* Typography: Prevent orphan words on headings (Web Interface Guidelines) */
+/* Headings */
 h1, h2, h3, h4 {
   text-wrap: balance;
+  letter-spacing: -0.02em;
 }

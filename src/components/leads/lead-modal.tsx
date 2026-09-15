@@ -156,14 +156,14 @@ export function LeadModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4 pt-2">
         {error && (
-          <div role="alert" className="flex items-center gap-2 p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400">
+          <div role="alert" className="flex items-center gap-2 p-3 rounded-md bg-danger/10 border border-danger/30 text-xs text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{error}</span>
           </div>
         )}
 
         {duplicateWarning && (
-          <div role="alert" className="flex items-start gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
+          <div role="alert" className="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/30 text-xs text-warning">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <span className="font-semibold">Duplicate Lead Detected: </span>

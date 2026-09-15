@@ -56,13 +56,13 @@ export function LeadDeleteDialog({
     >
       <div className="space-y-4 pt-2">
         {error && (
-          <div className="flex items-center gap-2 p-3 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400">
+          <div className="flex items-center gap-2 p-3 rounded-md bg-danger/10 border border-danger/30 text-xs text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-foreground-muted">
           You are about to permanently delete <strong className="text-foreground">{leadName}</strong> and all associated audit interactions from your pipeline.
         </p>
 

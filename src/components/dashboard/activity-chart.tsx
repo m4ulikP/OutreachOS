@@ -25,18 +25,18 @@ export function ActivityChart({ data }: { data: ActivityDataPoint[] }) {
   const hasData = data && data.length > 0 && data.some((d) => d.emails > 0 || d.replies > 0);
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="h-full flex flex-col bg-surface border-border">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
               Outreach Activity
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-foreground-muted">
               Daily email dispatches, replies received, and meetings held
             </CardDescription>
           </div>
-          <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          <BarChart3 className="h-3.5 w-3.5 text-foreground-muted" aria-hidden="true" />
         </div>
       </CardHeader>
       <CardContent className="pt-2 flex-1 flex flex-col justify-center">
@@ -69,16 +69,16 @@ export function ActivityChart({ data }: { data: ActivityDataPoint[] }) {
                 <Tooltip
                   cursor={{ fill: "var(--muted)", opacity: 0.2 }}
                   contentStyle={{
-                    backgroundColor: "var(--card)",
+                    backgroundColor: "var(--surface-elevated)",
                     borderColor: "var(--border)",
                     borderRadius: "6px",
                     fontSize: "12px",
                     boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                   }}
                 />
-                <Bar dataKey="emails" name="Emails Sent" fill="#6366f1" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="replies" name="Replies" fill="#a855f7" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="meetings" name="Meetings" fill="#10b981" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="emails" name="Emails Sent" fill="#7896A8" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="replies" name="Replies" fill="#D96C3A" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="meetings" name="Meetings" fill="#78A878" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

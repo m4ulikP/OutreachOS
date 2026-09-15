@@ -168,20 +168,20 @@ export default function LeadsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-0.5">
-            <span className="font-semibold text-foreground">Pipeline Core</span>
+          <div className="flex items-center gap-2 text-xs text-foreground-muted mb-0.5">
+            <span className="font-semibold text-foreground">Pipeline</span>
             <span>•</span>
             <span className="tabular-nums font-mono">{total} prospects tracked</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Lead Database
+            Lead database
           </h1>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <Link href="/finder">
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
-              <Search className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-              Find Prospects
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <Search className="h-3.5 w-3.5 text-foreground-muted" aria-hidden="true" />
+              Find prospects
             </Button>
           </Link>
           <Button
@@ -190,16 +190,16 @@ export default function LeadsPage() {
               setEditLead(null);
               setAddModalOpen(true);
             }}
-            className="h-9 gap-1.5 text-xs"
+            className="h-8 gap-1.5 text-xs"
           >
             <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
-            Add Lead
+            Add lead
           </Button>
         </div>
       </div>
 
-      {/* Tactile Stage Selector Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border/60 scrollbar-none">
+      {/* Stage Selector Tabs */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border scrollbar-none">
         {STAGE_TABS.map((tab) => {
           const isActive = filters.stage === tab.stage;
           return (
@@ -210,10 +210,10 @@ export default function LeadsPage() {
                 setPage(1);
               }}
               className={cn(
-                "px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors select-none",
+                "px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap transition-colors select-none",
                 isActive
-                  ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                  : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "text-foreground-muted hover:bg-surface-elevated hover:text-foreground"
               )}
             >
               {tab.label}
@@ -241,7 +241,7 @@ export default function LeadsPage() {
       ) : dbError ? (
         /* Database Offline State */
         <EmptyState
-          icon={<AlertCircle className="h-6 w-6 text-amber-500" aria-hidden="true" />}
+          icon={<AlertCircle className="h-6 w-6 text-warning" aria-hidden="true" />}
           title="Database Connection Needed"
           description="OutreachOS requires an active PostgreSQL database to store and query leads. Start your local database with 'docker compose up -d' or configure DATABASE_URL."
           action={
@@ -363,26 +363,26 @@ export default function LeadsPage() {
                           <div className="flex items-center gap-1.5 max-w-[170px]">
                             <a
                               href={`mailto:${lead.email}`}
-                              className="text-xs text-muted-foreground hover:text-foreground truncate"
+                              className="text-xs text-foreground-muted hover:text-foreground truncate"
                             >
                               {lead.email}
                             </a>
                             <button
                               type="button"
                               onClick={(e) => handleCopyEmail(lead.id, lead.email!, e)}
-                              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                              className="p-1 rounded text-foreground-subtle hover:text-foreground hover:bg-surface-elevated transition-colors shrink-0"
                               title="Copy email to clipboard"
                               aria-label={`Copy email for ${lead.fullName}`}
                             >
                               {isCopied ? (
-                                <Check className="h-3 w-3 text-emerald-500" />
+                                <Check className="h-3 w-3 text-success" />
                               ) : (
                                 <Copy className="h-3 w-3" />
                               )}
                             </button>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-foreground-subtle">—</span>
                         )}
                       </TableCell>
 
@@ -398,7 +398,7 @@ export default function LeadsPage() {
 
                       {/* Last Activity */}
                       <TableCell>
-                        <span className="text-xs text-muted-foreground tabular-nums font-mono">
+                        <span className="text-xs text-foreground-subtle tabular-nums font-mono">
                           {formatRelativeTime(lead.lastInteractionAt || lead.createdAt)}
                         </span>
                       </TableCell>
@@ -413,7 +413,7 @@ export default function LeadsPage() {
                               setEditLead(lead);
                               setAddModalOpen(true);
                             }}
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            className="h-8 w-8 text-foreground-muted hover:text-foreground"
                             aria-label={`Edit prospect ${lead.fullName}`}
                           >
                             <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -422,7 +422,7 @@ export default function LeadsPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setDeleteLeadTarget(lead)}
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 text-foreground-muted hover:text-danger"
                             aria-label={`Delete prospect ${lead.fullName}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

@@ -86,27 +86,28 @@ export function KpiCards({
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <Card key={card.title} className="p-3.5 transition-colors hover:border-border/80">
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between text-muted-foreground mb-1">
-                <span className="text-[11px] font-medium tracking-tight text-muted-foreground truncate">
-                  {card.title}
+          <div
+            key={card.title}
+            className="p-3.5 rounded-lg border border-border bg-surface transition-colors hover:border-border-subtle"
+          >
+            <div className="flex items-center justify-between text-foreground-muted mb-1">
+              <span className="text-[11px] font-medium tracking-tight text-foreground-muted truncate">
+                {card.title}
+              </span>
+              <Icon className="h-3.5 w-3.5 shrink-0 opacity-70 text-foreground-muted" aria-hidden="true" />
+            </div>
+            <div className="text-xl font-bold tracking-tight text-foreground tabular-nums">
+              {card.value}
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-foreground-muted mt-1">
+              <span className="truncate">{card.subtext}</span>
+              {card.trend && (
+                <span className="font-semibold text-success shrink-0 ml-1">
+                  {card.trend}
                 </span>
-                <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
-              </div>
-              <div className="text-xl font-bold tracking-tight text-foreground tabular-nums">
-                {card.value}
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
-                <span className="truncate">{card.subtext}</span>
-                {card.trend && (
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 shrink-0 ml-1">
-                    {card.trend}
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              )}
+            </div>
+          </div>
         );
       })}
     </div>

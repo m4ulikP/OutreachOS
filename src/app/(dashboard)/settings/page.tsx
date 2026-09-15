@@ -37,7 +37,7 @@ export default function SettingsPage() {
         <div
           role="status"
           aria-live="polite"
-          className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-400 font-medium animate-in fade-in"
+          className="flex items-center gap-2 p-3 rounded-md bg-success-tint border border-success/30 text-xs text-success font-medium animate-in fade-in"
         >
           <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>Configuration saved successfully.</span>

@@ -43,7 +43,7 @@ export function Dialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in"
+        className="fixed inset-0 bg-black/60 transition-opacity animate-in fade-in"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
@@ -55,13 +55,13 @@ export function Dialog({
         aria-labelledby={title ? "dialog-title" : undefined}
         aria-describedby={description ? "dialog-desc" : undefined}
         className={cn(
-          "relative z-50 w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl animate-in zoom-in-95 duration-150",
+          "relative z-50 w-full max-w-lg rounded-xl border border-border bg-surface-elevated p-6 shadow-md animate-in zoom-in-95 duration-150",
           className
         )}
       >
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute right-4 top-4 rounded-sm text-foreground-muted opacity-70 transition-opacity hover:opacity-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Close dialog"
         >
           <X className="h-4 w-4" />
@@ -75,7 +75,7 @@ export function Dialog({
               </h2>
             )}
             {description && (
-              <p id="dialog-desc" className="text-xs text-muted-foreground">
+              <p id="dialog-desc" className="text-xs text-foreground-muted">
                 {description}
               </p>
             )}

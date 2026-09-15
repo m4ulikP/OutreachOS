@@ -4,16 +4,13 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import {
   Search,
   SlidersHorizontal,
-  Sparkles,
   ExternalLink,
   ShieldCheck,
-  Zap,
   RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
@@ -32,8 +29,8 @@ interface Archetype {
 const FREELANCER_ARCHETYPES: Archetype[] = [
   {
     id: "saas-founders",
-    name: "SaaS Tech Founders",
-    description: "Seed & Series A founders building software",
+    name: "SaaS founders",
+    description: "Seed & Series A founders building software products",
     jobTitle: "Founder, Co-Founder, CEO",
     companySize: "1-10",
     industry: "B2B SaaS & Cloud",
@@ -42,8 +39,8 @@ const FREELANCER_ARCHETYPES: Archetype[] = [
   },
   {
     id: "ecom-growth",
-    name: "E-Commerce Growth Heads",
-    description: "Marketing directors scaling D2C brands",
+    name: "E-commerce growth heads",
+    description: "Marketing directors scaling D2C consumer brands",
     jobTitle: "VP Marketing, Head of Growth",
     companySize: "11-50",
     industry: "E-Commerce & D2C Retail",
@@ -52,7 +49,7 @@ const FREELANCER_ARCHETYPES: Archetype[] = [
   },
   {
     id: "agency-leaders",
-    name: "Agency Principals",
+    name: "Agency principals",
     description: "Creative & digital agency owners needing senior talent",
     jobTitle: "Creative Director, Managing Partner",
     companySize: "1-10",
@@ -62,7 +59,7 @@ const FREELANCER_ARCHETYPES: Archetype[] = [
   },
   {
     id: "fintech-product",
-    name: "Fintech Product VP",
+    name: "Fintech product leaders",
     description: "Product leaders scaling compliance & payment rails",
     jobTitle: "VP Product, Chief Product Officer",
     companySize: "51-200",
@@ -164,21 +161,21 @@ export default function ClientFinderPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-0.5">
-            <span className="font-semibold text-foreground">Outreach Radar</span>
+          <div className="flex items-center gap-2 text-xs text-foreground-muted mb-0.5">
+            <span className="font-semibold text-foreground">Discovery</span>
             <span>•</span>
-            <span>Decision-Maker Discovery</span>
+            <span>Prospect queries</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Client Finder
+            Client finder
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Query high-intent freelance clients using compliant B2B provider APIs
+          <p className="text-xs text-foreground-muted mt-0.5">
+            Query decision-makers by seniority, company profile, and specialization
           </p>
         </div>
         <Link href="/settings">
-          <Button variant="outline" size="sm" className="text-xs gap-1.5 self-start sm:self-auto h-9">
-            Configure Provider
+          <Button variant="outline" size="sm" className="text-xs gap-1.5 self-start sm:self-auto h-8">
+            Configure provider
             <ExternalLink className="h-3 w-3" aria-hidden="true" />
           </Button>
         </Link>
@@ -189,25 +186,25 @@ export default function ClientFinderPage() {
         <div
           role="status"
           aria-live="polite"
-          className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.04] dark:bg-amber-950/20 text-xs text-foreground shadow-xs"
+          className="flex items-start gap-3 p-3.5 rounded-md border border-warning/30 bg-warning-tint text-xs text-foreground"
         >
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 mt-0.5">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-warning/15 text-warning mt-0.5">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
           </div>
-          <div className="space-y-1 flex-1">
+          <div className="space-y-0.5 flex-1">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-foreground">
-                External B2B Lead Provider Not Connected
+                B2B data provider not connected
               </span>
-              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.2 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                Setup Required
+              <span className="inline-flex items-center rounded px-1.5 py-0.2 text-[10px] font-medium bg-warning/20 text-warning">
+                Setup required
               </span>
             </div>
-            <p className="text-muted-foreground leading-relaxed">
-              OutreachOS strictly prohibits unauthorized scraping and simulated profiles.
-              To execute live queries against real decision-makers, connect an approved B2B provider API (such as Apollo, Clearbit, or Hunter) in{" "}
+            <p className="text-foreground-muted leading-relaxed">
+              OutreachOS strictly prohibits scraping and simulated profiles.
+              To execute live prospect queries, connect an approved B2B provider API in{" "}
               <Link href="/settings" className="underline font-medium text-foreground hover:text-primary">
-                Settings → Lead Sources
+                Settings → Lead sources
               </Link>
               . You can test your query filters below in advance.
             </p>
@@ -215,18 +212,17 @@ export default function ClientFinderPage() {
         </div>
       )}
 
-      {/* Freelancer ICP Archetype Quick-Picks */}
-      <section aria-label="Freelancer Target Archetypes" className="space-y-2.5">
+      {/* Target Archetypes */}
+      <section aria-label="Target archetypes" className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-            <Zap className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
-            Instant Freelance ICP Presets
-          </span>
-          <span className="text-[11px] text-muted-foreground">
-            Click to auto-fill search filters
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+            Target archetypes
+          </h2>
+          <span className="text-[11px] text-foreground-subtle">
+            Select to pre-fill search filters
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {FREELANCER_ARCHETYPES.map((arch) => {
             const isSelected = activeArchetype === arch.id;
             return (
@@ -235,16 +231,16 @@ export default function ClientFinderPage() {
                 type="button"
                 onClick={() => handleSelectArchetype(arch)}
                 className={cn(
-                  "flex flex-col text-left p-3.5 rounded-xl border transition-all text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-xs",
+                  "flex flex-col text-left p-3 rounded-md border transition-all text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary",
                   isSelected
-                    ? "border-primary bg-primary/[0.05] ring-1 ring-primary/30"
-                    : "border-border/70 bg-card hover:bg-muted/40 hover:border-border"
+                    ? "border-primary bg-primary-soft/20 ring-1 ring-primary/30"
+                    : "border-border bg-surface hover:bg-surface-elevated"
                 )}
               >
                 <span className="font-semibold text-foreground tracking-tight">
                   {arch.name}
                 </span>
-                <span className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed">
+                <span className="text-[11px] text-foreground-muted mt-0.5 line-clamp-2 leading-relaxed">
                   {arch.description}
                 </span>
                 <span className="text-[10px] font-mono text-primary font-medium mt-2">
@@ -256,37 +252,30 @@ export default function ClientFinderPage() {
         </div>
       </section>
 
-      {/* Discovery Criteria Form Card */}
-      <Card className="rounded-xl shadow-xs">
-        <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-xs font-semibold flex items-center gap-2">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                Prospect Discovery Criteria
-              </CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Target prospects by executive title, headcount, specialization, and geography
-              </CardDescription>
-            </div>
-            {activeArchetype && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClear}
-                className="h-7 px-2 text-xs text-muted-foreground gap-1"
-              >
-                <RotateCcw className="h-3 w-3" />
-                Reset
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
+      {/* Discovery Criteria Form */}
+      <section aria-label="Discovery criteria" className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+            Criteria
+          </h2>
+          {activeArchetype && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClear}
+              className="h-6 px-2 text-xs text-foreground-muted gap-1"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset
+            </Button>
+          )}
+        </div>
+
+        <div className="rounded-md border border-border bg-surface p-4">
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Input
-                label="Target Job Title"
+                label="Target job title"
                 name="finderJobTitle"
                 spellCheck={false}
                 placeholder="e.g. Founder, Chief Marketing Officer…"
@@ -298,7 +287,7 @@ export default function ClientFinderPage() {
               />
 
               <Select
-                label="Company Size"
+                label="Company size"
                 name="finderCompanySize"
                 value={companySize}
                 onChange={(e) => {
@@ -307,15 +296,15 @@ export default function ClientFinderPage() {
                 }}
               >
                 <option value="">Any company size</option>
-                <option value="1-10">1-10 employees (Early Stage)</option>
+                <option value="1-10">1-10 employees (Early stage)</option>
                 <option value="11-50">11-50 employees (Seed / Growth)</option>
                 <option value="51-200">51-200 employees (Scaleup)</option>
-                <option value="201-500">201-500 employees (Mid-Market)</option>
+                <option value="201-500">201-500 employees (Mid-market)</option>
                 <option value="500+">500+ employees (Enterprise)</option>
               </Select>
 
               <Input
-                label="Target Industry"
+                label="Industry"
                 name="finderIndustry"
                 spellCheck={false}
                 placeholder="e.g. Fintech, HealthTech, AI, SaaS…"
@@ -327,7 +316,7 @@ export default function ClientFinderPage() {
               />
 
               <Input
-                label="Geographic Location"
+                label="Geographic location"
                 name="finderLocation"
                 spellCheck={false}
                 placeholder="e.g. United States, London, Remote…"
@@ -340,7 +329,7 @@ export default function ClientFinderPage() {
 
               <div className="sm:col-span-2 lg:col-span-2">
                 <Input
-                  label="Keywords / Tech Stack"
+                  label="Keywords / Tech stack"
                   name="finderKeywords"
                   spellCheck={false}
                   placeholder="e.g. Next.js, Stripe, B2B SaaS, Hiring…"
@@ -362,60 +351,61 @@ export default function ClientFinderPage() {
                 disabled={searching}
                 className="h-8 text-xs"
               >
-                Clear Filters
+                Clear filters
               </Button>
               <Button type="submit" size="sm" disabled={searching} className="gap-1.5 h-8 text-xs">
                 <Search className="h-3.5 w-3.5" aria-hidden="true" />
-                {searching ? "Dispatching Query…" : "Search Prospects"}
+                {searching ? "Searching…" : "Search prospects"}
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Discovery Results Area */}
-      <div className="space-y-3">
-        <h2 className="text-xs font-semibold text-foreground tracking-tight">
-          Discovery Results
+      <section aria-label="Results" className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+          Results
         </h2>
 
         {!searchExecuted ? (
-          <EmptyState
-            icon={<Search className="h-6 w-6" aria-hidden="true" />}
-            title="Configure criteria or pick an archetype above"
-            description="Use an instant preset or tailor your search filters to discover verified prospect profiles."
-            className="py-14 rounded-xl"
-          />
+          <div className="rounded-md border border-border bg-surface p-12 text-center">
+            <Search className="h-5 w-5 mx-auto text-foreground-subtle mb-1.5" />
+            <p className="text-xs font-medium text-foreground">Configure criteria or pick an archetype</p>
+            <p className="text-[11px] text-foreground-muted mt-0.5 max-w-sm mx-auto">
+              Select an archetype preset above or customize search filters to query verified prospects.
+            </p>
+          </div>
         ) : providerInfo && !providerInfo.isConfigured ? (
-          <EmptyState
-            icon={<ShieldCheck className="h-6 w-6 text-amber-500" aria-hidden="true" />}
-            title="Provider API Key Required for Live Dispatch"
-            description={
-              providerInfo.message ||
-              "OutreachOS is ready to dispatch this search query once your B2B provider key is configured in Settings."
-            }
-            action={
+          <div className="rounded-md border border-border bg-surface p-12 text-center">
+            <ShieldCheck className="h-5 w-5 mx-auto text-warning mb-1.5" />
+            <p className="text-xs font-medium text-foreground">Provider API key required</p>
+            <p className="text-[11px] text-foreground-muted mt-0.5 max-w-md mx-auto">
+              {providerInfo.message ||
+                "Connect an approved B2B provider API key in Settings to execute live queries."}
+            </p>
+            <div className="mt-3">
               <Link href="/settings">
-                <Button size="sm" className="h-8 text-xs">Connect Provider in Settings</Button>
+                <Button size="sm" className="h-8 text-xs">Connect provider</Button>
               </Link>
-            }
-            className="py-14 rounded-xl"
-          />
+            </div>
+          </div>
         ) : searchResults.length === 0 ? (
-          <EmptyState
-            icon={<Search className="h-6 w-6" aria-hidden="true" />}
-            title="No leads matched these criteria"
-            description="Try broadening your job titles, locations, or company size filters."
-            className="py-14 rounded-xl"
-          />
+          <div className="rounded-md border border-border bg-surface p-12 text-center">
+            <Search className="h-5 w-5 mx-auto text-foreground-subtle mb-1.5" />
+            <p className="text-xs font-medium text-foreground">No leads matched these criteria</p>
+            <p className="text-[11px] text-foreground-muted mt-0.5">
+              Try broadening your job titles, locations, or company size filters.
+            </p>
+          </div>
         ) : (
-          <div className="p-4 rounded-xl border border-border bg-card">
-            <span className="text-xs text-muted-foreground tabular-nums font-mono">
+          <div className="p-3.5 rounded-md border border-border bg-surface">
+            <span className="text-xs text-foreground-muted tabular-nums font-mono">
               Found {searchResults.length} matching prospects.
             </span>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

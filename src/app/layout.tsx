@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "OutreachOS — Freelancer Outreach & Sales Automation",
+  title: "OutreachOS — Freelancer Sales Studio",
   description:
-    "Production-quality operating system for freelancer lead generation, AI-powered personalization, outreach automation, meeting scheduling, and sales analytics.",
+    "Refined professional workspace for freelancers managing prospects, tailored outreach, discovery calls, and pipeline conversions.",
 };
 
 export default function RootLayout({

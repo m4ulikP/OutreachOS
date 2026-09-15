@@ -27,18 +27,18 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           aria-invalid={error ? "true" : undefined}
           className={cn(
-            "flex h-9 w-full rounded-md border border-input bg-card px-3 py-1.5 text-sm shadow-sm transition-colors",
-            "file:border-0 file:bg-transparent file:text-sm file:font-medium",
-            "placeholder:text-muted-foreground",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
+            "flex h-9 w-full rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-xs text-foreground shadow-2xs transition-colors",
+            "file:border-0 file:bg-transparent file:text-xs file:font-medium",
+            "placeholder:text-foreground-muted",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary focus-visible:bg-surface",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            error && "border-destructive focus-visible:ring-destructive",
+            error && "border-danger focus-visible:ring-danger",
             className
           )}
           {...props}
         />
         {error && (
-          <p className="text-xs text-destructive mt-1 font-medium" role="alert">
+          <p className="text-[11px] font-medium text-danger" role="alert">
             {error}
           </p>
         )}

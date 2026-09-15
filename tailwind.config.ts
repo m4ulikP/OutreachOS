@@ -11,7 +11,16 @@ const config: Config = {
     extend: {
       colors: {
         background: "var(--background)",
-        foreground: "var(--foreground)",
+        foreground: {
+          DEFAULT: "var(--foreground)",
+          muted: "var(--foreground-muted)",
+          subtle: "var(--foreground-subtle)",
+        },
+        surface: {
+          DEFAULT: "var(--surface)",
+          elevated: "var(--surface-elevated)",
+          foreground: "var(--surface-foreground)",
+        },
         card: {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
@@ -24,6 +33,7 @@ const config: Config = {
           DEFAULT: "var(--primary)",
           foreground: "var(--primary-foreground)",
           hover: "var(--primary-hover)",
+          soft: "var(--primary-soft)",
         },
         secondary: {
           DEFAULT: "var(--secondary)",
@@ -37,11 +47,34 @@ const config: Config = {
           DEFAULT: "var(--accent)",
           foreground: "var(--accent-foreground)",
         },
-        destructive: {
-          DEFAULT: "var(--destructive)",
-          foreground: "var(--destructive-foreground)",
+        success: {
+          DEFAULT: "var(--success)",
+          foreground: "var(--success-foreground)",
+          tint: "var(--success-tint)",
         },
-        border: "var(--border)",
+        warning: {
+          DEFAULT: "var(--warning)",
+          foreground: "var(--warning-foreground)",
+          tint: "var(--warning-tint)",
+        },
+        danger: {
+          DEFAULT: "var(--danger)",
+          foreground: "var(--danger-foreground)",
+          tint: "var(--danger-tint)",
+        },
+        info: {
+          DEFAULT: "var(--info)",
+          foreground: "var(--info-foreground)",
+          tint: "var(--info-tint)",
+        },
+        destructive: {
+          DEFAULT: "var(--danger)",
+          foreground: "var(--danger-foreground)",
+        },
+        border: {
+          DEFAULT: "var(--border)",
+          subtle: "var(--border-subtle)",
+        },
         input: "var(--input)",
         ring: "var(--ring)",
       },

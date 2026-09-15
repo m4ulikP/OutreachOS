@@ -1,8 +1,8 @@
+"use client";
+
 import * as React from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import { formatRelativeTime } from "@/lib/utils";
-import { Activity, Clock } from "lucide-react";
+import { Activity } from "lucide-react";
 
 export interface RecentInteractionItem {
   id: string;
@@ -19,22 +19,25 @@ export function RecentActivityCard({
   activities: RecentInteractionItem[];
 }) {
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <div>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Timeline of interactions and stage changes</CardDescription>
-        </div>
-        <Clock className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent className="flex-1 pt-0">
+    <section aria-label="Recent activity" className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+          Recent activity
+        </h2>
+        <span className="text-[11px] text-foreground-subtle">
+          Interaction log
+        </span>
+      </div>
+
+      <div className="rounded-md border border-border bg-surface p-4">
         {activities.length === 0 ? (
-          <EmptyState
-            icon={<Activity className="h-5 w-5" />}
-            title="No activity recorded"
-            description="Interaction notes, email sends, and stage updates will create a live audit log here."
-            className="py-8 border-0 bg-transparent"
-          />
+          <div className="py-6 text-center">
+            <Activity className="h-5 w-5 mx-auto text-foreground-subtle mb-1.5" />
+            <p className="text-xs font-medium text-foreground">No recent activity</p>
+            <p className="text-[11px] text-foreground-muted mt-0.5">
+              Dispatched emails, replies, and stage updates will appear here.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {activities.map((act) => (
@@ -45,24 +48,24 @@ export function RecentActivityCard({
                     {act.title}
                   </span>
                   {act.description && (
-                    <span className="text-[11px] text-muted-foreground truncate">
+                    <span className="text-[11px] text-foreground-muted truncate">
                       {act.description}
                     </span>
                   )}
                   {act.leadName && (
-                    <span className="text-[10px] text-muted-foreground font-medium">
+                    <span className="text-[10px] text-foreground-subtle font-medium mt-0.5">
                       Lead: {act.leadName}
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] text-muted-foreground shrink-0">
+                <span className="text-[10px] text-foreground-subtle shrink-0 font-mono tabular-nums">
                   {formatRelativeTime(act.createdAt)}
                 </span>
               </div>
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

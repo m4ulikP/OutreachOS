@@ -5,13 +5,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  Sparkles,
   Search,
   UserPlus,
   Send,
   UploadCloud,
   CheckCircle2,
-  Terminal,
   ArrowRight,
   Copy,
   Check,
@@ -36,170 +34,159 @@ export function OutreachLaunchpad({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // If there are zero leads, render the 4-step Action Playbook
+  // If there are zero leads, render the practical Next Steps checklist
   if (totalLeads === 0) {
     return (
-      <div
-        className={cn(
-          "rounded-xl border border-primary/30 bg-gradient-to-br from-card via-card to-primary/[0.03] p-5 shadow-xs",
-          className
-        )}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border/60">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              </span>
-              <h2 className="text-sm font-bold tracking-tight text-foreground">
-                Outreach Engine Accelerator
-              </h2>
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                Quick Start
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Complete these steps to activate your autonomous freelancer sales pipeline
-            </p>
-          </div>
+      <section aria-label="Next steps" className={cn("space-y-2", className)}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+            Next steps
+          </h2>
+          <span className="text-[11px] text-foreground-subtle">
+            Setup checklist
+          </span>
         </div>
 
-        {/* 4 Interactive Playbook Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-          {/* Step 1: Database */}
-          <div className="flex flex-col justify-between p-3.5 rounded-lg border border-border/70 bg-card/60">
-            <div>
-              <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
-                <span>1. Connect Database</span>
-                {dbConnected ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                ) : (
-                  <span className="text-[10px] text-amber-500 font-mono">Needed</span>
-                )}
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {dbConnected
-                  ? "PostgreSQL is online and ready for persistence."
-                  : "Launch your local PostgreSQL instance for persistent storage."}
-              </p>
-            </div>
-            {!dbConnected && (
-              <div className="mt-3 pt-2 border-t border-border/40">
-                <button
-                  onClick={copyCommand}
-                  className="flex items-center justify-between w-full px-2 py-1 rounded bg-muted/60 text-[11px] font-mono text-foreground hover:bg-muted transition-colors"
-                >
-                  <span className="truncate">docker compose up -d</span>
-                  {copied ? (
-                    <Check className="h-3 w-3 text-emerald-500" />
+        <div className="rounded-md border border-border bg-surface p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Step 1: Database */}
+            <div className="flex flex-col justify-between p-3 rounded border border-border bg-surface-elevated">
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
+                  <span>1. Database</span>
+                  {dbConnected ? (
+                    <span className="flex items-center gap-1 text-[11px] text-success font-medium">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Connected
+                    </span>
                   ) : (
-                    <Copy className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-[10px] text-warning font-mono">Offline</span>
                   )}
-                </button>
+                </div>
+                <p className="text-[11px] text-foreground-muted leading-relaxed">
+                  {dbConnected
+                    ? "PostgreSQL database is running and ready for leads."
+                    : "Start your local database to store and track outreach."}
+                </p>
               </div>
-            )}
-          </div>
+              {!dbConnected && (
+                <div className="mt-2.5 pt-2 border-t border-border">
+                  <button
+                    onClick={copyCommand}
+                    className="flex items-center justify-between w-full px-2 py-1 rounded bg-surface text-[11px] font-mono text-foreground hover:bg-surface-elevated border border-border transition-colors"
+                  >
+                    <span className="truncate">docker compose up -d</span>
+                    {copied ? (
+                      <Check className="h-3 w-3 text-success" />
+                    ) : (
+                      <Copy className="h-3 w-3 text-foreground-muted" />
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
 
-          {/* Step 2: Discover Clients */}
-          <div className="flex flex-col justify-between p-3.5 rounded-lg border border-border/70 bg-card/60">
-            <div>
-              <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
-                <span>2. Discover Targets</span>
-                <Search className="h-3.5 w-3.5 text-muted-foreground" />
+            {/* Step 2: Discover Targets */}
+            <div className="flex flex-col justify-between p-3 rounded border border-border bg-surface-elevated">
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
+                  <span>2. Find targets</span>
+                  <Search className="h-3.5 w-3.5 text-foreground-muted" />
+                </div>
+                <p className="text-[11px] text-foreground-muted leading-relaxed">
+                  Define your target criteria or use a preset in Client Finder.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Query decision-makers by seniority, industry, and tech stack in Client Finder.
-              </p>
+              <div className="mt-2.5 pt-2 border-t border-border">
+                <Link href="/finder">
+                  <Button variant="outline" size="sm" className="w-full text-xs h-7 gap-1">
+                    Open Finder
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <div className="mt-3 pt-2 border-t border-border/40">
-              <Link href="/finder">
-                <Button variant="outline" size="sm" className="w-full text-xs h-7 gap-1">
-                  Open Finder
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              </Link>
-            </div>
-          </div>
 
-          {/* Step 3: Add First Prospect */}
-          <div className="flex flex-col justify-between p-3.5 rounded-lg border border-border/70 bg-card/60">
-            <div>
-              <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
-                <span>3. Add First Lead</span>
-                <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+            {/* Step 3: Add First Prospect */}
+            <div className="flex flex-col justify-between p-3 rounded border border-border bg-surface-elevated">
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
+                  <span>3. Add first lead</span>
+                  <UserPlus className="h-3.5 w-3.5 text-foreground-muted" />
+                </div>
+                <p className="text-[11px] text-foreground-muted leading-relaxed">
+                  Add a prospect manually or import an existing contact CSV list.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Manually record a prospect or import an existing CSV contact list.
-              </p>
+              <div className="mt-2.5 pt-2 border-t border-border">
+                <Link href="/leads">
+                  <Button size="sm" className="w-full text-xs h-7 gap-1">
+                    Add Lead
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <div className="mt-3 pt-2 border-t border-border/40">
-              <Link href="/leads">
-                <Button size="sm" className="w-full text-xs h-7 gap-1">
-                  Add Lead
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              </Link>
-            </div>
-          </div>
 
-          {/* Step 4: Launch Campaign */}
-          <div className="flex flex-col justify-between p-3.5 rounded-lg border border-border/70 bg-card/60">
-            <div>
-              <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
-                <span>4. Craft Sequences</span>
-                <Send className="h-3.5 w-3.5 text-muted-foreground" />
+            {/* Step 4: Launch Campaign */}
+            <div className="flex flex-col justify-between p-3 rounded border border-border bg-surface-elevated">
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1">
+                  <span>4. Campaigns</span>
+                  <Send className="h-3.5 w-3.5 text-foreground-muted" />
+                </div>
+                <p className="text-[11px] text-foreground-muted leading-relaxed">
+                  Set up automated outreach cadences with follow-up timing.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Set up automated multi-touch email cadences with smart follow-up intervals.
-              </p>
-            </div>
-            <div className="mt-3 pt-2 border-t border-border/40">
-              <Link href="/campaigns">
-                <Button variant="outline" size="sm" className="w-full text-xs h-7 gap-1">
-                  Campaigns
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              </Link>
+              <div className="mt-2.5 pt-2 border-t border-border">
+                <Link href="/campaigns">
+                  <Button variant="outline" size="sm" className="w-full text-xs h-7 gap-1">
+                    Campaigns
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     );
   }
 
-  // If leads already exist, render the fast action command strip
+  // If leads already exist, render the simple inline actions strip
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-border/80 bg-card shadow-xs",
+        "flex flex-wrap items-center justify-between gap-3 p-3 rounded-md border border-border bg-surface",
         className
       )}
     >
       <div className="flex items-center gap-2 text-xs">
         <span className="font-semibold text-foreground tracking-tight">
-          Quick Actions
+          Quick actions
         </span>
-        <span className="text-[10px] text-muted-foreground">
-          • Rapid pipeline execution
+        <span className="text-[11px] text-foreground-subtle">
+          • Pipeline shortcuts
         </span>
       </div>
       <div className="flex items-center gap-2">
         <Link href="/finder">
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-            <Search className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-            Find Clients
+            <Search className="h-3.5 w-3.5 text-foreground-muted" aria-hidden="true" />
+            Find clients
           </Button>
         </Link>
         <Link href="/leads">
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-            <UploadCloud className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            <UploadCloud className="h-3.5 w-3.5 text-foreground-muted" aria-hidden="true" />
             Import CSV
           </Button>
         </Link>
         <Link href="/leads">
           <Button size="sm" className="h-8 text-xs gap-1.5">
             <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
-            Add Lead
+            Add lead
           </Button>
         </Link>
       </div>

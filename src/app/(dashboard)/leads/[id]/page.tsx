@@ -20,7 +20,7 @@ import {
   MapPin,
   Building2,
   Calendar,
-  Sparkles,
+  PenLine,
   Send,
   PlusCircle,
   Clock,
@@ -341,7 +341,7 @@ export default function LeadDetailPage() {
                 <div
                   role="status"
                   aria-live="polite"
-                  className="flex items-center gap-1.5 mb-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium"
+                  className="flex items-center gap-1.5 mb-2 text-xs text-success font-medium"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Notes saved to database.</span>
@@ -553,21 +553,21 @@ export default function LeadDetailPage() {
             </CardContent>
           </Card>
 
-          {/* AI Actions Card */}
-          <Card className="border-primary/20 bg-primary/5">
+          {/* Personalization Studio Action */}
+          <Card className="border-border bg-surface">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs flex items-center gap-1.5 text-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                AI Personalization Engine
+                <PenLine className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                Tailored Outreach Pitch
               </CardTitle>
               <CardDescription className="text-[11px]">
-                Research company profile and draft tailored outreach pitches.
+                Generate a fact-grounded cold outreach email for this prospect.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/personalization">
                 <Button size="sm" variant="outline" className="w-full text-xs gap-1.5">
-                  Open Personalization Studio
+                  Draft Personalized Pitch
                 </Button>
               </Link>
             </CardContent>

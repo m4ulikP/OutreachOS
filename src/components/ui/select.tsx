@@ -28,30 +28,30 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             aria-invalid={error ? "true" : undefined}
             className={cn(
-              "flex h-9 w-full rounded-md border border-input bg-card px-3 py-1.5 text-sm shadow-sm transition-colors appearance-none pr-8",
-              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
+              "flex h-9 w-full rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-xs text-foreground shadow-2xs transition-colors appearance-none pr-8",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary focus-visible:bg-surface",
               "disabled:cursor-not-allowed disabled:opacity-50",
-              error && "border-destructive focus-visible:ring-destructive",
+              error && "border-danger focus-visible:ring-danger",
               className
             )}
             {...props}
           >
             {options
               ? options.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
+                  <option key={opt.value} value={opt.value} className="bg-surface text-foreground">
                     {opt.label}
                   </option>
                 ))
               : children}
           </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-foreground-muted">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </div>
         </div>
         {error && (
-          <p className="text-xs text-destructive mt-1 font-medium" role="alert">
+          <p className="text-[11px] text-danger mt-1 font-medium" role="alert">
             {error}
           </p>
         )}

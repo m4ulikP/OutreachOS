@@ -12,30 +12,30 @@ export interface FunnelItem {
 }
 
 const STAGE_BAR_COLORS: Record<string, string> = {
-  NEW: "bg-sky-500",
-  CONTACTED: "bg-indigo-500",
-  REPLIED: "bg-violet-500",
-  POSITIVE_REPLY: "bg-amber-500",
-  MEETING_SCHEDULED: "bg-emerald-500",
-  CLIENT: "bg-emerald-600",
+  NEW: "bg-foreground-muted/40",
+  CONTACTED: "bg-info",
+  REPLIED: "bg-primary",
+  POSITIVE_REPLY: "bg-success",
+  MEETING_SCHEDULED: "bg-warning",
+  CLIENT: "bg-success",
 };
 
 export function FunnelChart({ funnel }: { funnel: FunnelItem[] }) {
   const total = funnel.reduce((acc, curr) => acc + curr.count, 0);
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="h-full flex flex-col bg-surface border-border">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
               Lead Conversion Funnel
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-foreground-muted">
               Prospect progression from discovery to closed client
             </CardDescription>
           </div>
-          <Filter className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          <Filter className="h-3.5 w-3.5 text-foreground-muted" aria-hidden="true" />
         </div>
       </CardHeader>
       <CardContent className="pt-2 flex-1 flex flex-col justify-center">
