@@ -17,12 +17,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LeadFilters, FilterState } from "@/components/leads/lead-filters";
 import { LeadModal } from "@/components/leads/lead-modal";
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
+import { CsvImportModal } from "@/components/leads/csv-import-modal";
 import { BulkActionBar } from "@/components/leads/bulk-action-bar";
 import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
   UserPlus,
   Users,
+  UploadCloud,
   ChevronLeft,
   ChevronRight,
   Edit2,
@@ -167,6 +169,7 @@ export default function LeadsPage() {
 
   // Modals
   const [addModalOpen, setAddModalOpen] = React.useState(false);
+  const [importModalOpen, setImportModalOpen] = React.useState(false);
   const [editLead, setEditLead] = React.useState<LeadItem | null>(null);
   const [deleteLeadTarget, setDeleteLeadTarget] = React.useState<LeadItem | null>(null);
 
@@ -285,6 +288,15 @@ export default function LeadsPage() {
               Find prospects
             </Button>
           </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setImportModalOpen(true)}
+            className="h-8 gap-1.5 text-xs"
+          >
+            <UploadCloud className="h-3.5 w-3.5 text-foreground-muted" aria-hidden="true" />
+            Import CSV
+          </Button>
           <Button
             size="sm"
             onClick={() => {
@@ -790,6 +802,13 @@ export default function LeadsPage() {
           }}
         />
       )}
+
+      {/* CSV Import Modal */}
+      <CsvImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onSuccess={fetchLeads}
+      />
     </div>
   );
 }
