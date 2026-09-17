@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUser, assertResourceOwnership, NotFoundError } from "@/lib/auth/session";
-import { handleApiError } from "@/lib/api-response";
+import { handleApiError, ValidationError } from "@/lib/api-response";
 import { addLeadInteraction } from "@/lib/services/lead-service";
 import { prisma } from "@/lib/db";
+import { cuidParamSchema } from "@/lib/validation/common";
+import { createInteractionSchema } from "@/lib/validation/interactions";
 
 interface RouteParams {
   params: { id: string };
@@ -14,9 +16,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const user = await requireAuthUser(req);
 
+    // Validate route parameter
+    const idValidation = cuidParamSchema.safeParse(params.id);
+    if (!idValidation.success) {
+      return handleApiError(idValidation.error);
+    }
+    const leadId = idValidation.data;
+
     // 1. Verify existence and enforce resource ownership
     const lead = await prisma.lead.findUnique({
-      where: { id: params.id },
+      where: { id: leadId },
       select: { id: true, userId: true },
     });
 
@@ -26,15 +35,24 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     assertResourceOwnership(lead.userId, user.id);
 
-    const body = await req.json();
-    const { type = "NOTE", title, description } = body;
-    if (!title || typeof title !== "string" || title.trim() === "") {
-      return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    // 2. Safely parse and validate JSON body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return handleApiError(new ValidationError("Invalid JSON in request body"));
     }
+
+    const validation = createInteractionSchema.safeParse(body);
+    if (!validation.success) {
+      return handleApiError(validation.error);
+    }
+
+    const { type, title, description } = validation.data;
 
     const interaction = await addLeadInteraction(
       user.id,
-      params.id,
+      leadId,
       type,
       title,
       description

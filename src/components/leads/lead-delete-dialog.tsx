@@ -33,7 +33,11 @@ export function LeadDeleteDialog({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to delete lead");
+        const errorMsg =
+          typeof data.error === "string"
+            ? data.error
+            : data.error?.message || data.message || "Failed to delete lead";
+        throw new Error(errorMsg);
       }
 
       onOpenChange(false);

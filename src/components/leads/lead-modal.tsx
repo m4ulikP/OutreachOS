@@ -129,7 +129,11 @@ export function LeadModal({
           setLoading(false);
           return;
         }
-        throw new Error(data.error || "Failed to save lead");
+        const errorMsg =
+          typeof data.error === "string"
+            ? data.error
+            : data.error?.message || data.message || "Failed to save lead";
+        throw new Error(errorMsg);
       }
 
       onOpenChange(false);

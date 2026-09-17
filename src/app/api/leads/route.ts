@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth/session";
-import { handleApiError } from "@/lib/api-response";
+import { handleApiError, ValidationError } from "@/lib/api-response";
 import { listLeads, createLead } from "@/lib/services/lead-service";
-import { LeadStage, TagType } from "@prisma/client";
+import { listLeadsQuerySchema, createLeadSchema } from "@/lib/validation/leads";
 
 export const dynamic = "force-dynamic";
 
@@ -11,34 +11,34 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthUser(req);
     const { searchParams } = new URL(req.url);
 
-    const search = searchParams.get("search") || undefined;
-    const stage = (searchParams.get("stage") as LeadStage) || undefined;
-    const temperature = (searchParams.get("temperature") as TagType) || undefined;
-    const industry = searchParams.get("industry") || undefined;
-    const location = searchParams.get("location") || undefined;
-    const companyName = searchParams.get("companyName") || undefined;
-    const sortBy = (searchParams.get("sortBy") as "name" | "createdAt" | "lastInteractionAt" | "stage") || "createdAt";
-    const sortOrder = (searchParams.get("sortOrder") as "asc" | "desc") || "desc";
+    // Build raw query object from search params
+    const rawQuery: Record<string, string> = {};
+    for (const [key, value] of searchParams.entries()) {
+      if (value !== "") {
+        rawQuery[key] = value;
+      }
+    }
 
-    const rawPage = parseInt(searchParams.get("page") || "1", 10);
-    const rawPageSize = parseInt(searchParams.get("pageSize") || "20", 10);
+    // Validate query parameters with Zod
+    const queryValidation = listLeadsQuerySchema.safeParse(rawQuery);
+    if (!queryValidation.success) {
+      return handleApiError(queryValidation.error);
+    }
 
-    // Enforce safe boundaries for pagination
-    const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
-    const pageSize = Math.max(1, Math.min(isNaN(rawPageSize) ? 20 : rawPageSize, 100));
+    const params = queryValidation.data;
 
     const result = await listLeads({
       userId: user.id,
-      search,
-      stage,
-      temperature,
-      industry,
-      location,
-      companyName,
-      sortBy,
-      sortOrder,
-      page,
-      pageSize,
+      search: params.search,
+      stage: params.stage,
+      temperature: params.temperature,
+      industry: params.industry,
+      location: params.location,
+      companyName: params.companyName,
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder,
+      page: params.page,
+      pageSize: params.pageSize,
     });
 
     return NextResponse.json(result);
@@ -50,14 +50,29 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser(req);
-    const body = await req.json();
 
-    const { lead, deduplication } = await createLead(user.id, body);
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return handleApiError(new ValidationError("Invalid JSON in request body"));
+    }
+
+    // Strict validation and mass-assignment protection
+    const validation = createLeadSchema.safeParse(body);
+    if (!validation.success) {
+      return handleApiError(validation.error);
+    }
+
+    const validatedInput = validation.data;
+    const { lead, deduplication } = await createLead(user.id, validatedInput);
 
     if (deduplication.isDuplicate) {
       return NextResponse.json(
         {
-          error: "Duplicate lead detected",
+          error: deduplication.reason,
+          code: "CONFLICT",
+          message: "Duplicate lead detected",
           deduplication,
         },
         { status: 409 }
