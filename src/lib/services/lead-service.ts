@@ -1,5 +1,6 @@
 import { prisma } from "../db";
-import { LeadStage, TagType, Prisma } from "@prisma/client";
+import { LeadStage, TagType, InteractionType, Prisma } from "@prisma/client";
+import { ForbiddenError, NotFoundError } from "../auth/session";
 import { checkDuplicate, DeduplicationResult } from "../deduplication/detector";
 import {
   normalizeEmail,
@@ -13,10 +14,16 @@ export interface ListLeadsParams {
   search?: string;
   stage?: LeadStage;
   temperature?: TagType;
+  tag?: string;
+  tagId?: string;
   industry?: string;
   location?: string;
   companyName?: string;
-  sortBy?: "name" | "createdAt" | "lastInteractionAt" | "stage";
+  createdAfter?: Date;
+  createdBefore?: Date;
+  lastInteractionAfter?: Date;
+  lastInteractionBefore?: Date;
+  sortBy?: "name" | "company" | "createdAt" | "updatedAt" | "lastInteractionAt" | "stage";
   sortOrder?: "asc" | "desc";
   page?: number;
   pageSize?: number;
@@ -67,9 +74,15 @@ export async function listLeads(params: ListLeadsParams) {
     search,
     stage,
     temperature,
+    tag,
+    tagId,
     industry,
     location,
     companyName,
+    createdAfter,
+    createdBefore,
+    lastInteractionAfter,
+    lastInteractionBefore,
     sortBy = "createdAt",
     sortOrder = "desc",
     page = 1,
@@ -80,7 +93,7 @@ export async function listLeads(params: ListLeadsParams) {
     userId,
   };
 
-  // Search by name, email, job title, company
+  // Search by name, email, job title, company, website, LinkedIn URL
   if (search && search.trim() !== "") {
     const q = search.trim();
     where.OR = [
@@ -90,6 +103,8 @@ export async function listLeads(params: ListLeadsParams) {
       { email: { contains: q, mode: "insensitive" } },
       { jobTitle: { contains: q, mode: "insensitive" } },
       { company: { name: { contains: q, mode: "insensitive" } } },
+      { website: { contains: q, mode: "insensitive" } },
+      { linkedInUrl: { contains: q, mode: "insensitive" } },
     ];
   }
 
@@ -109,20 +124,76 @@ export async function listLeads(params: ListLeadsParams) {
     where.company = { name: { contains: companyName, mode: "insensitive" } };
   }
 
+  // Tag & Temperature filters with deterministic AND behavior
+  const tagConditions: Prisma.LeadWhereInput[] = [];
   if (temperature) {
-    where.tagAssignments = {
-      some: {
-        tag: {
-          type: temperature,
+    tagConditions.push({
+      tagAssignments: {
+        some: {
+          tag: {
+            type: temperature,
+          },
         },
       },
+    });
+  }
+
+  if (tag) {
+    tagConditions.push({
+      tagAssignments: {
+        some: {
+          tag: {
+            name: { equals: tag, mode: "insensitive" },
+          },
+        },
+      },
+    });
+  }
+
+  if (tagId) {
+    tagConditions.push({
+      tagAssignments: {
+        some: {
+          tagId,
+        },
+      },
+    });
+  }
+
+  if (tagConditions.length > 0) {
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      ...tagConditions,
+    ];
+  }
+
+  // Date range filters
+  if (createdAfter || createdBefore) {
+    where.createdAt = {
+      ...(createdAfter ? { gte: createdAfter } : {}),
+      ...(createdBefore ? { lte: createdBefore } : {}),
     };
   }
 
-  // Ordering
-  let orderBy: Prisma.LeadOrderByWithRelationInput = { createdAt: "desc" };
+  if (lastInteractionAfter || lastInteractionBefore) {
+    where.lastInteractionAt = {
+      ...(lastInteractionAfter ? { gte: lastInteractionAfter } : {}),
+      ...(lastInteractionBefore ? { lte: lastInteractionBefore } : {}),
+    };
+  }
+
+  // Safe server-side sorting with explicit allowlist & deterministic nullable relations
+  let orderBy:
+    | Prisma.LeadOrderByWithRelationInput
+    | Prisma.LeadOrderByWithRelationInput[] = { createdAt: "desc" };
+
   if (sortBy === "name") {
     orderBy = { fullName: sortOrder };
+  } else if (sortBy === "company") {
+    // Relation sorting with deterministic tie-breaker
+    orderBy = [{ company: { name: sortOrder } }, { id: "asc" }];
+  } else if (sortBy === "updatedAt") {
+    orderBy = { updatedAt: sortOrder };
   } else if (sortBy === "lastInteractionAt") {
     orderBy = { lastInteractionAt: sortOrder };
   } else if (sortBy === "stage") {
@@ -562,7 +633,7 @@ export async function updateLead(
         normalizedEmail: normalizeEmail(effectiveEmail),
         normalizedLinkedInUrl: normalizeLinkedInUrl(effectiveLinkedIn),
         compositeHash: computeCompositeHash(effectiveFullName, companyRef),
-        lastInteractionAt: stageChanged ? new Date() : existing.lastInteractionAt,
+        lastInteractionAt: existing.lastInteractionAt,
       },
     });
 
@@ -633,5 +704,334 @@ export async function addLeadInteraction(
     });
 
     return interaction;
+  });
+}
+
+// --------------------------------------------------------
+// TAG MANAGEMENT (TENANT-SCOPED)
+// --------------------------------------------------------
+
+export async function createTag(
+  userId: string,
+  input: { name: string; type?: TagType; color?: string }
+) {
+  const trimmedName = input.name.trim();
+  let tag = await prisma.leadTag.findUnique({
+    where: {
+      userId_name: {
+        userId,
+        name: trimmedName,
+      },
+    },
+  });
+
+  if (!tag) {
+    try {
+      tag = await prisma.leadTag.create({
+        data: {
+          userId,
+          name: trimmedName,
+          type: input.type || TagType.CUSTOM,
+          color: input.color || null,
+        },
+      });
+    } catch (err: unknown) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        tag = await prisma.leadTag.findUnique({
+          where: {
+            userId_name: {
+              userId,
+              name: trimmedName,
+            },
+          },
+        });
+      }
+      if (!tag) throw err;
+    }
+  }
+
+  return tag;
+}
+
+export async function listTags(userId: string) {
+  return await prisma.leadTag.findMany({
+    where: { userId },
+    orderBy: { name: "asc" },
+    include: {
+      _count: {
+        select: { assignments: true },
+      },
+    },
+  });
+}
+
+export async function assignTagToLead(
+  userId: string,
+  leadId: string,
+  tagId: string
+) {
+  return await prisma.$transaction(async (tx) => {
+    // 1. Verify lead belongs to user
+    const lead = await tx.lead.findUnique({
+      where: { id: leadId },
+      select: { id: true, userId: true },
+    });
+    if (!lead) {
+      throw new NotFoundError("Lead not found.");
+    }
+    if (lead.userId !== userId) {
+      throw new ForbiddenError("Unauthorized access to lead.");
+    }
+
+    // 2. Verify tag belongs to user
+    const tag = await tx.leadTag.findUnique({
+      where: { id: tagId },
+      select: { id: true, userId: true },
+    });
+    if (!tag) {
+      throw new NotFoundError("Tag not found.");
+    }
+    if (tag.userId !== userId) {
+      throw new ForbiddenError("Unauthorized access to tag.");
+    }
+
+    // 3. Prevent duplicate assignment gracefully
+    let assignment = await tx.leadTagAssignment.findUnique({
+      where: {
+        leadId_tagId: {
+          leadId,
+          tagId,
+        },
+      },
+    });
+
+    if (!assignment) {
+      assignment = await tx.leadTagAssignment.create({
+        data: {
+          leadId,
+          tagId,
+        },
+      });
+    }
+
+    return { assignment, tag };
+  });
+}
+
+export async function removeTagFromLead(
+  userId: string,
+  leadId: string,
+  tagId: string
+) {
+  return await prisma.$transaction(async (tx) => {
+    // 1. Verify lead belongs to user
+    const lead = await tx.lead.findUnique({
+      where: { id: leadId },
+      select: { id: true, userId: true },
+    });
+    if (!lead) {
+      throw new NotFoundError("Lead not found.");
+    }
+    if (lead.userId !== userId) {
+      throw new ForbiddenError("Unauthorized access to lead.");
+    }
+
+    // 2. Verify tag belongs to user
+    const tag = await tx.leadTag.findUnique({
+      where: { id: tagId },
+      select: { id: true, userId: true },
+    });
+    if (!tag) {
+      throw new NotFoundError("Tag not found.");
+    }
+    if (tag.userId !== userId) {
+      throw new ForbiddenError("Unauthorized access to tag.");
+    }
+
+    await tx.leadTagAssignment.deleteMany({
+      where: {
+        leadId,
+        tagId,
+      },
+    });
+
+    return { success: true, leadId, tagId };
+  });
+}
+
+// --------------------------------------------------------
+// TIMELINE INTERACTIONS (BOUNDED RETRIEVAL)
+// --------------------------------------------------------
+
+export async function listLeadInteractions(
+  userId: string,
+  leadId: string,
+  params: { page?: number; pageSize?: number; type?: InteractionType }
+) {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { id: true, userId: true },
+  });
+  if (!lead) {
+    throw new NotFoundError("Lead not found.");
+  }
+  if (lead.userId !== userId) {
+    throw new ForbiddenError("Unauthorized access to lead.");
+  }
+
+  const safePage = Math.max(1, params.page || 1);
+  const safePageSize = Math.min(Math.max(1, params.pageSize || 20), 100);
+  const skip = (safePage - 1) * safePageSize;
+
+  const where: Prisma.LeadInteractionWhereInput = {
+    leadId,
+    userId,
+  };
+  if (params.type) {
+    where.type = params.type;
+  }
+
+  const [interactions, total] = await Promise.all([
+    prisma.leadInteraction.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: safePageSize,
+    }),
+    prisma.leadInteraction.count({ where }),
+  ]);
+
+  return {
+    interactions,
+    total,
+    page: safePage,
+    pageSize: safePageSize,
+    totalPages: Math.ceil(total / safePageSize),
+  };
+}
+
+// --------------------------------------------------------
+// BULK OPERATIONS (TRANSACTIONAL & TENANT-ISOLATED)
+// --------------------------------------------------------
+
+export interface BulkLeadsInput {
+  action: "UPDATE_STAGE" | "ASSIGN_TAG" | "REMOVE_TAG" | "DELETE";
+  leadIds: string[];
+  stage?: LeadStage;
+  tagId?: string;
+}
+
+export async function bulkLeadOperation(
+  userId: string,
+  input: BulkLeadsInput
+) {
+  const uniqueLeadIds = Array.from(new Set(input.leadIds));
+  if (uniqueLeadIds.length === 0) {
+    return { affectedCount: 0 };
+  }
+  if (uniqueLeadIds.length > 100) {
+    throw new Error("Cannot process more than 100 leads per bulk operation.");
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Verify all leads exist and enforce strict tenant ownership
+    const foundLeads = await tx.lead.findMany({
+      where: {
+        id: { in: uniqueLeadIds },
+      },
+      select: { id: true, userId: true, stage: true },
+    });
+
+    if (foundLeads.length !== uniqueLeadIds.length) {
+      throw new NotFoundError("One or more leads do not exist.");
+    }
+
+    const crossTenantLead = foundLeads.some((l) => l.userId !== userId);
+    if (crossTenantLead) {
+      throw new ForbiddenError("One or more leads belong to another tenant.");
+    }
+
+    if (input.action === "ASSIGN_TAG" || input.action === "REMOVE_TAG") {
+      if (!input.tagId) {
+        throw new Error("Tag ID is required for tag operations.");
+      }
+      const tag = await tx.leadTag.findUnique({
+        where: { id: input.tagId },
+        select: { id: true, userId: true },
+      });
+      if (!tag) {
+        throw new NotFoundError("Tag not found.");
+      }
+      if (tag.userId !== userId) {
+        throw new ForbiddenError("Tag belongs to another tenant.");
+      }
+
+      if (input.action === "ASSIGN_TAG") {
+        await tx.leadTagAssignment.createMany({
+          data: uniqueLeadIds.map((leadId) => ({
+            leadId,
+            tagId: input.tagId!,
+          })),
+          skipDuplicates: true,
+        });
+        return { affectedCount: uniqueLeadIds.length };
+      } else {
+        const result = await tx.leadTagAssignment.deleteMany({
+          where: {
+            leadId: { in: uniqueLeadIds },
+            tagId: input.tagId,
+          },
+        });
+        return { affectedCount: result.count };
+      }
+    }
+
+    if (input.action === "UPDATE_STAGE") {
+      if (!input.stage) {
+        throw new Error("Stage is required for stage update.");
+      }
+
+      // Bulk update stage without altering lastInteractionAt
+      await tx.lead.updateMany({
+        where: {
+          id: { in: uniqueLeadIds },
+          userId,
+        },
+        data: {
+          stage: input.stage,
+        },
+      });
+
+      // Record STAGE_CHANGE interactions in bulk for leads whose stage actually changed
+      const changedLeads = foundLeads.filter((l) => l.stage !== input.stage);
+      if (changedLeads.length > 0) {
+        await tx.leadInteraction.createMany({
+          data: changedLeads.map((l) => ({
+            userId,
+            leadId: l.id,
+            type: "STAGE_CHANGE" as const,
+            title: `Stage Changed to ${input.stage}`,
+            description: `Lead moved from ${l.stage} to ${input.stage}.`,
+          })),
+        });
+      }
+
+      return { affectedCount: uniqueLeadIds.length };
+    }
+
+    if (input.action === "DELETE") {
+      const result = await tx.lead.deleteMany({
+        where: {
+          id: { in: uniqueLeadIds },
+          userId,
+        },
+      });
+      return { affectedCount: result.count };
+    }
+
+    throw new Error(`Unsupported action: ${input.action}`);
   });
 }

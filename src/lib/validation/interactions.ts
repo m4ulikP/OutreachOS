@@ -24,3 +24,24 @@ export const createInteractionSchema = z
   .strict("Unrecognized or forbidden field submitted for interaction");
 
 export type CreateInteractionInputValidated = z.infer<typeof createInteractionSchema>;
+
+export const listInteractionsQuerySchema = z.object({
+  type: z
+    .enum(["NOTE", "CALL", "MEETING", "EMAIL_SENT", "REPLY_RECEIVED", "STAGE_CHANGE", "AI_RESEARCH"], {
+      errorMap: () => ({ message: "Invalid interaction type filter" }),
+    })
+    .optional(),
+  page: z.coerce
+    .number({ invalid_type_error: "Page must be a valid number" })
+    .int("Page must be an integer")
+    .min(1, "Page must be at least 1")
+    .default(1),
+  pageSize: z.coerce
+    .number({ invalid_type_error: "Page size must be a valid number" })
+    .int("Page size must be an integer")
+    .min(1, "Page size must be at least 1")
+    .max(100, "Page size cannot exceed 100")
+    .default(20),
+});
+
+export type ListInteractionsQueryValidated = z.infer<typeof listInteractionsQuerySchema>;

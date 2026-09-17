@@ -134,6 +134,32 @@ export const updateLeadSchema = z
 
 export type UpdateLeadInputValidated = z.infer<typeof updateLeadSchema>;
 
+export const TemperatureTypeEnum = z.enum(
+  ["HOT", "WARM", "COLD", "FOLLOW_UP_NEEDED", "CLIENT"],
+  {
+    errorMap: () => ({ message: "Invalid temperature filter" }),
+  }
+);
+
+export type TemperatureType = z.infer<typeof TemperatureTypeEnum>;
+
+export const isoDateQuerySchema = z
+  .string()
+  .trim()
+  .refine(
+    (val) => {
+      const parsed = Date.parse(val);
+      if (isNaN(parsed)) return false;
+      const d = new Date(parsed);
+      return !isNaN(d.getTime());
+    },
+    {
+      message: "Invalid date format. Must be an ISO date or datetime string",
+    }
+  )
+  .transform((val) => new Date(val))
+  .optional();
+
 /**
  * Schema for query parameters in GET /api/leads.
  * Rejects invalid enums, non-numeric values, or bounds violations.
@@ -145,16 +171,18 @@ export const listLeadsQuerySchema = z.object({
       errorMap: () => ({ message: "Invalid stage filter" }),
     })
     .optional(),
-  temperature: z
-    .nativeEnum(TagType, {
-      errorMap: () => ({ message: "Invalid temperature filter" }),
-    })
-    .optional(),
+  temperature: TemperatureTypeEnum.optional(),
+  tag: z.string().trim().max(50, "Tag filter cannot exceed 50 characters").optional(),
+  tagId: z.string().cuid("Tag ID must be a valid CUID").optional(),
   industry: z.string().trim().max(100, "Industry filter cannot exceed 100 characters").optional(),
   location: z.string().trim().max(150, "Location filter cannot exceed 150 characters").optional(),
   companyName: z.string().trim().max(150, "Company filter cannot exceed 150 characters").optional(),
+  createdAfter: isoDateQuerySchema,
+  createdBefore: isoDateQuerySchema,
+  lastInteractionAfter: isoDateQuerySchema,
+  lastInteractionBefore: isoDateQuerySchema,
   sortBy: z
-    .enum(["name", "createdAt", "lastInteractionAt", "stage"], {
+    .enum(["name", "company", "createdAt", "updatedAt", "lastInteractionAt", "stage"], {
       errorMap: () => ({ message: "Invalid sortBy parameter" }),
     })
     .default("createdAt"),
