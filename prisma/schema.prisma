@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // --------------------------------------------------------
@@ -145,7 +146,7 @@ model Company {
   leads        Lead[]
   aiResearches AIResearch[]
 
-  @@index([userId, name])
+  @@unique([userId, name])
   @@index([userId, domain])
   @@map("companies")
 }
@@ -172,6 +173,11 @@ model Lead {
   stage             LeadStage           @default(NEW)
   notes             String?             @db.Text
 
+  // Deduplication canonical fields (multi-tenant indexed)
+  normalizedEmail       String?
+  normalizedLinkedInUrl String?
+  compositeHash         String?
+
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   lastInteractionAt DateTime?
@@ -188,6 +194,9 @@ model Lead {
 
   @@index([userId, email])
   @@index([userId, linkedInUrl])
+  @@index([userId, normalizedEmail])
+  @@index([userId, normalizedLinkedInUrl])
+  @@index([userId, compositeHash])
   @@index([userId, stage])
   @@index([userId, createdAt])
   @@index([userId, lastInteractionAt])
@@ -342,6 +351,7 @@ model FollowUp {
   createdAt    DateTime       @default(now())
 
   @@index([leadId, status])
+  @@index([status, scheduledFor])
   @@map("follow_ups")
 }
 

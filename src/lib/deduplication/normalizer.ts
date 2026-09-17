@@ -156,3 +156,14 @@ export function createNameCompanyKey(
 
   return `${normName}:::${normCompany}`;
 }
+
+/**
+ * Canonical helper for computing the compositeHash stored in the Lead model.
+ * Uses createNameCompanyKey ensuring 100% logic consistency across all database operations.
+ */
+export function computeCompositeHash(
+  fullName: string | null | undefined,
+  companyNameOrDomain: string | null | undefined
+): string | null {
+  return createNameCompanyKey(fullName, companyNameOrDomain);
+}

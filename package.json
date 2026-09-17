@@ -8,9 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/normalizer.test.ts tests/deduplication.test.ts tests/authorization.test.ts tests/analytics.test.ts",
+    "test": "tsx --test tests/normalizer.test.ts tests/deduplication.test.ts tests/authorization.test.ts tests/analytics.test.ts tests/database-schema.test.ts",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:push": "prisma db push",
+    "db:backfill": "tsx scripts/backfill-lead-dedup.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

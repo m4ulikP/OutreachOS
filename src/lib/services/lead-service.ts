@@ -1,6 +1,11 @@
 import { prisma } from "../db";
 import { LeadStage, TagType, Prisma } from "@prisma/client";
 import { checkDuplicate, DeduplicationResult } from "../deduplication/detector";
+import {
+  normalizeEmail,
+  normalizeLinkedInUrl,
+  computeCompositeHash,
+} from "../deduplication/normalizer";
 
 export interface ListLeadsParams {
   userId: string;
@@ -253,28 +258,52 @@ export async function createLead(
     });
 
     if (!company) {
-      company = await prisma.company.create({
-        data: {
-          userId,
-          name: trimmedName,
-          domain: input.companyDomain || null,
-          website: input.website || null,
-          industry: input.industry || null,
-          companySize: input.companySize || null,
-          location: input.location || null,
-        },
-      });
+      try {
+        company = await prisma.company.create({
+          data: {
+            userId,
+            name: trimmedName,
+            domain: input.companyDomain || null,
+            website: input.website || null,
+            industry: input.industry || null,
+            companySize: input.companySize || null,
+            location: input.location || null,
+          },
+        });
+      } catch (err: unknown) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === "P2002"
+        ) {
+          company = await prisma.company.findUnique({
+            where: {
+              userId_name: {
+                userId,
+                name: trimmedName,
+              },
+            },
+          });
+        }
+        if (!company) throw err;
+      }
     }
     companyId = company.id;
   }
 
-  // 3. Compute fullName
+  // 3. Compute fullName and deduplication hashes
   const computedFullName =
     input.fullName ||
     [input.firstName, input.lastName].filter(Boolean).join(" ") ||
     "Unnamed Lead";
 
-  // 4. Create Lead
+  const normEmail = normalizeEmail(input.email);
+  const normLinkedIn = normalizeLinkedInUrl(input.linkedInUrl);
+  const compKey = computeCompositeHash(
+    computedFullName,
+    input.companyDomain || input.companyName
+  );
+
+  // 4. Create Lead with persistent deduplication fields
   const newLead = await prisma.lead.create({
     data: {
       userId,
@@ -293,6 +322,9 @@ export async function createLead(
       source: input.source || "Manual Entry",
       stage: input.stage || LeadStage.NEW,
       notes: input.notes || null,
+      normalizedEmail: normEmail,
+      normalizedLinkedInUrl: normLinkedIn,
+      compositeHash: compKey,
       lastInteractionAt: new Date(),
     },
   });
@@ -368,19 +400,33 @@ export async function updateLead(
 
   const stageChanged = input.stage && input.stage !== existing.stage;
 
+  const effectiveFullName =
+    input.fullName !== undefined
+      ? input.fullName
+      : input.firstName || input.lastName
+      ? [input.firstName || existing.firstName, input.lastName || existing.lastName]
+          .filter(Boolean)
+          .join(" ")
+      : existing.fullName;
+  const effectiveEmail = input.email !== undefined ? input.email : existing.email;
+  const effectiveLinkedIn =
+    input.linkedInUrl !== undefined ? input.linkedInUrl : existing.linkedInUrl;
+
+  let companyRef = input.companyDomain || input.companyName || null;
+  if (!companyRef && existing.companyId) {
+    const comp = await prisma.company.findUnique({
+      where: { id: existing.companyId },
+      select: { domain: true, name: true },
+    });
+    companyRef = comp?.domain || comp?.name || null;
+  }
+
   const updated = await prisma.lead.update({
     where: { id: leadId },
     data: {
       firstName: input.firstName !== undefined ? input.firstName : existing.firstName,
       lastName: input.lastName !== undefined ? input.lastName : existing.lastName,
-      fullName:
-        input.fullName !== undefined
-          ? input.fullName
-          : input.firstName || input.lastName
-          ? [input.firstName || existing.firstName, input.lastName || existing.lastName]
-              .filter(Boolean)
-              .join(" ")
-          : existing.fullName,
+      fullName: effectiveFullName,
       jobTitle: input.jobTitle !== undefined ? input.jobTitle : existing.jobTitle,
       email: input.email !== undefined ? input.email : existing.email,
       phone: input.phone !== undefined ? input.phone : existing.phone,
@@ -391,6 +437,9 @@ export async function updateLead(
       location: input.location !== undefined ? input.location : existing.location,
       stage: input.stage !== undefined ? input.stage : existing.stage,
       notes: input.notes !== undefined ? input.notes : existing.notes,
+      normalizedEmail: normalizeEmail(effectiveEmail),
+      normalizedLinkedInUrl: normalizeLinkedInUrl(effectiveLinkedIn),
+      compositeHash: computeCompositeHash(effectiveFullName, companyRef),
       lastInteractionAt: stageChanged ? new Date() : existing.lastInteractionAt,
     },
   });
