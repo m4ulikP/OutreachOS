@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { UnauthorizedError, ForbiddenError, NotFoundError } from "@/lib/auth/session";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
+import { logger } from "@/lib/logger";
+import { REQUEST_ID_HEADER } from "@/lib/request-id";
 
 export type ApiErrorCode =
   | "VALIDATION_ERROR"
@@ -40,6 +42,7 @@ export interface StandardApiErrorBody {
   fields?: Record<string, string[]>;
   details?: Array<{ path: string; message: string }>;
   issues?: Array<{ path: string; message: string }>;
+  requestId?: string;
 }
 
 /**
@@ -74,46 +77,77 @@ export function formatZodError(error: ZodError): {
 }
 
 /**
+ * Helper to attach requestId header to error responses
+ */
+function withRequestIdHeader(
+  res: NextResponse<StandardApiErrorBody>,
+  requestId?: string
+): NextResponse<StandardApiErrorBody> {
+  if (requestId) {
+    try {
+      res.headers.set(REQUEST_ID_HEADER, requestId);
+    } catch {
+      // Ignore on immutable response
+    }
+  }
+  return res;
+}
+
+/**
  * Centralized API error handler:
  * - Maps known domain errors to 400, 401, 403, 404, 409, 500
  * - Normalizes Zod validation errors to standardized field-level breakdowns
  * - Prevents leaking stack traces, SQL errors, or database credentials
+ * - Emits canonical structured error logs with requestId exactly once
  * - Preserves backward compatibility with clients reading `data.error` as a string
  */
-export function handleApiError(error: unknown, contextMessage?: string): NextResponse<StandardApiErrorBody> {
+export function handleApiError(
+  error: unknown,
+  contextMessage?: string,
+  requestId?: string
+): NextResponse<StandardApiErrorBody> {
   if (error instanceof UnauthorizedError) {
     const message = error.message || "Authentication required";
-    return NextResponse.json(
-      {
-        error: message,
-        code: "AUTHENTICATION_REQUIRED",
-        message,
-      },
-      { status: 401 }
+    return withRequestIdHeader(
+      NextResponse.json(
+        {
+          error: message,
+          code: "AUTHENTICATION_REQUIRED",
+          message,
+        },
+        { status: 401 }
+      ),
+      requestId
     );
   }
 
   if (error instanceof ForbiddenError) {
     const message = error.message || "Forbidden";
-    return NextResponse.json(
-      {
-        error: message,
-        code: "FORBIDDEN",
-        message,
-      },
-      { status: 403 }
+    return withRequestIdHeader(
+      NextResponse.json(
+        {
+          error: message,
+          code: "FORBIDDEN",
+          message,
+        },
+        { status: 403 }
+      ),
+      requestId
     );
   }
 
   if (error instanceof NotFoundError) {
     const message = error.message || "Not found";
-    return NextResponse.json(
-      {
-        error: message,
-        code: "NOT_FOUND",
-        message,
-      },
-      { status: 404 }
+    return withRequestIdHeader(
+      NextResponse.json(
+        {
+          error: message,
+          code: "NOT_FOUND",
+          message,
+        },
+        { status: 404 }
+      ),
+      requestId
     );
   }
 
@@ -122,43 +156,52 @@ export function handleApiError(error: unknown, contextMessage?: string): NextRes
     const details = Object.entries(error.fields || {}).flatMap(([path, msgs]) =>
       msgs.map((m) => ({ path, message: m }))
     );
-    return NextResponse.json(
-      {
-        error: message,
-        code: "VALIDATION_ERROR",
-        message,
-        fields: error.fields,
-        details,
-        issues: details,
-      },
-      { status: 400 }
+    return withRequestIdHeader(
+      NextResponse.json(
+        {
+          error: message,
+          code: "VALIDATION_ERROR",
+          message,
+          fields: error.fields,
+          details,
+          issues: details,
+        },
+        { status: 400 }
+      ),
+      requestId
     );
   }
 
   if (error instanceof ZodError) {
     const { fields, details, summaryMessage } = formatZodError(error);
-    return NextResponse.json(
-      {
-        error: summaryMessage,
-        code: "VALIDATION_ERROR",
-        message: "Request validation failed",
-        fields,
-        details,
-        issues: details,
-      },
-      { status: 400 }
+    return withRequestIdHeader(
+      NextResponse.json(
+        {
+          error: summaryMessage,
+          code: "VALIDATION_ERROR",
+          message: "Request validation failed",
+          fields,
+          details,
+          issues: details,
+        },
+        { status: 400 }
+      ),
+      requestId
     );
   }
 
   if (error instanceof ConflictError) {
     const message = error.message || "Resource conflict";
-    return NextResponse.json(
-      {
-        error: message,
-        code: "CONFLICT",
-        message,
-      },
-      { status: 409 }
+    return withRequestIdHeader(
+      NextResponse.json(
+        {
+          error: message,
+          code: "CONFLICT",
+          message,
+        },
+        { status: 409 }
+      ),
+      requestId
     );
   }
 
@@ -166,48 +209,68 @@ export function handleApiError(error: unknown, contextMessage?: string): NextRes
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") {
       const message = "A resource with these details already exists";
-      return NextResponse.json(
-        {
-          error: message,
-          code: "CONFLICT",
-          message,
-        },
-        { status: 409 }
+      return withRequestIdHeader(
+        NextResponse.json(
+          {
+            error: message,
+            code: "CONFLICT",
+            message,
+          },
+          { status: 409 }
+        ),
+        requestId
       );
     }
     if (error.code === "P2025") {
       const message = "Requested resource not found";
-      return NextResponse.json(
-        {
-          error: message,
-          code: "NOT_FOUND",
-          message,
-        },
-        { status: 404 }
+      return withRequestIdHeader(
+        NextResponse.json(
+          {
+            error: message,
+            code: "NOT_FOUND",
+            message,
+          },
+          { status: 404 }
+        ),
+        requestId
       );
     }
     if (error.code === "P2003") {
       const message = "Referenced resource does not exist";
-      return NextResponse.json(
-        {
-          error: message,
-          code: "VALIDATION_ERROR",
-          message,
-        },
-        { status: 400 }
+      return withRequestIdHeader(
+        NextResponse.json(
+          {
+            error: message,
+            code: "VALIDATION_ERROR",
+            message,
+          },
+          { status: 400 }
+        ),
+        requestId
       );
     }
   }
 
-  // Log unexpected errors internally without exposing raw exceptions to client
-  console.error(contextMessage || "API Error:", error);
+  // Canonical error logging: log unexpected 500 error exactly once with server-side stack & diagnostics
+  try {
+    logger.error(contextMessage || "API Unexpected Internal Error", {
+      requestId,
+      error,
+    });
+  } catch {
+    // Safe fallback: never let logger throw
+  }
 
-  return NextResponse.json(
-    {
-      error: "Internal server error",
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error",
-    },
-    { status: 500 }
+  return withRequestIdHeader(
+    NextResponse.json(
+      {
+        error: "Internal server error",
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Internal server error",
+        ...(requestId ? { requestId } : {}),
+      },
+      { status: 500 }
+    ),
+    requestId
   );
 }

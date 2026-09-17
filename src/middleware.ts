@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { extractRequestId, REQUEST_ID_HEADER } from "@/lib/request-id";
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Establish and propagate canonical request ID
+  const requestId = extractRequestId(req);
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set(REQUEST_ID_HEADER, requestId);
 
   // Allow public assets and public endpoints unconditionally
   if (
@@ -13,7 +19,13 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.includes(".")
   ) {
-    return NextResponse.next();
+    const res = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+    res.headers.set(REQUEST_ID_HEADER, requestId);
+    return res;
   }
 
   // Verify session token
@@ -30,22 +42,38 @@ export async function middleware(req: NextRequest) {
   // API routes return 401 JSON on missing/invalid authentication
   if (pathname.startsWith("/api/")) {
     if (!token) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         { error: "Authentication required to access this resource" },
         { status: 401 }
       );
+      res.headers.set(REQUEST_ID_HEADER, requestId);
+      return res;
     }
-    return NextResponse.next();
+    const res = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+    res.headers.set(REQUEST_ID_HEADER, requestId);
+    return res;
   }
 
   // Application pages redirect unauthenticated users to /login
   if (!token) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+    const res = NextResponse.redirect(loginUrl);
+    res.headers.set(REQUEST_ID_HEADER, requestId);
+    return res;
   }
 
-  return NextResponse.next();
+  const res = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+  res.headers.set(REQUEST_ID_HEADER, requestId);
+  return res;
 }
 
 export const config = {

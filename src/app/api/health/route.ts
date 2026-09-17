@@ -1,31 +1,48 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { checkDatabaseConnection } from "@/lib/db";
 import { getLeadSourceProvider } from "@/lib/providers/lead-source";
 import { getAIProvider } from "@/lib/providers/ai";
+import { withApiObservability } from "@/lib/api-wrapper";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withApiObservability(async (_req: NextRequest) => {
   const dbStatus = await checkDatabaseConnection();
   const leadSource = getLeadSourceProvider();
   const aiProvider = getAIProvider();
 
-  return NextResponse.json({
-    status: "ok",
-    database: {
-      connected: dbStatus.connected,
-      error: dbStatus.error || null,
-    },
-    providers: {
-      leadSource: {
-        name: leadSource.name,
-        isConfigured: leadSource.isConfigured(),
+  const isAiConfigured = aiProvider.isConfigured();
+  const isProspectProviderConfigured = leadSource.isConfigured();
+  const isEmailConfigured = Boolean(
+    process.env.RESEND_API_KEY || process.env.SMTP_HOST || process.env.EMAIL_SERVER
+  );
+
+  const isHealthy = dbStatus.connected;
+  const httpStatus = isHealthy ? 200 : 503;
+
+  return NextResponse.json(
+    {
+      status: isHealthy ? "ok" : "degraded",
+      database: {
+        connected: dbStatus.connected,
+        latencyMs: dbStatus.latencyMs,
+        error: dbStatus.error || null,
       },
-      ai: {
-        name: aiProvider.name,
-        isConfigured: aiProvider.isConfigured(),
+      aiConfigured: isAiConfigured,
+      prospectProviderConfigured: isProspectProviderConfigured,
+      emailConfigured: isEmailConfigured,
+      providers: {
+        leadSource: {
+          name: leadSource.name,
+          isConfigured: isProspectProviderConfigured,
+        },
+        ai: {
+          name: aiProvider.name,
+          isConfigured: isAiConfigured,
+        },
       },
+      timestamp: new Date().toISOString(),
     },
-    timestamp: new Date().toISOString(),
-  });
-}
+    { status: httpStatus }
+  );
+});

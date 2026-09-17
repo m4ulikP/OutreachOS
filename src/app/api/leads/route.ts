@@ -3,10 +3,13 @@ import { requireAuthUser } from "@/lib/auth/session";
 import { handleApiError, ValidationError } from "@/lib/api-response";
 import { listLeads, createLead } from "@/lib/services/lead-service";
 import { listLeadsQuerySchema, createLeadSchema } from "@/lib/validation/leads";
+import { withApiObservability } from "@/lib/api-wrapper";
+import { logger } from "@/lib/logger";
+import { REQUEST_ID_HEADER } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+export const GET = withApiObservability(async (req: NextRequest, _ctx, { requestId }) => {
   try {
     const user = await requireAuthUser(req);
     const { searchParams } = new URL(req.url);
@@ -22,7 +25,7 @@ export async function GET(req: NextRequest) {
     // Validate query parameters with Zod
     const queryValidation = listLeadsQuerySchema.safeParse(rawQuery);
     if (!queryValidation.success) {
-      return handleApiError(queryValidation.error);
+      return handleApiError(queryValidation.error, "Validation error in GET /api/leads", requestId);
     }
 
     const params = queryValidation.data;
@@ -43,11 +46,11 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: unknown) {
-    return handleApiError(error, "GET /api/leads error");
+    return handleApiError(error, "GET /api/leads error", requestId);
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withApiObservability(async (req: NextRequest, _ctx, { requestId }) => {
   try {
     const user = await requireAuthUser(req);
 
@@ -55,20 +58,27 @@ export async function POST(req: NextRequest) {
     try {
       body = await req.json();
     } catch {
-      return handleApiError(new ValidationError("Invalid JSON in request body"));
+      return handleApiError(new ValidationError("Invalid JSON in request body"), undefined, requestId);
     }
 
     // Strict validation and mass-assignment protection
     const validation = createLeadSchema.safeParse(body);
     if (!validation.success) {
-      return handleApiError(validation.error);
+      return handleApiError(validation.error, "Validation error in POST /api/leads", requestId);
     }
 
     const validatedInput = validation.data;
     const { lead, deduplication } = await createLead(user.id, validatedInput);
 
     if (deduplication.isDuplicate) {
-      return NextResponse.json(
+      logger.warn("Duplicate lead detected during creation", {
+        userId: user.id,
+        matchedBy: deduplication.matchedBy,
+        matchedLeadId: deduplication.matchedLeadId,
+        requestId,
+      });
+
+      const res = NextResponse.json(
         {
           error: deduplication.reason,
           code: "CONFLICT",
@@ -77,16 +87,26 @@ export async function POST(req: NextRequest) {
         },
         { status: 409 }
       );
+      res.headers.set(REQUEST_ID_HEADER, requestId);
+      return res;
     }
 
-    return NextResponse.json(
+    logger.info("Lead created successfully", {
+      userId: user.id,
+      leadId: lead?.id,
+      requestId,
+    });
+
+    const res = NextResponse.json(
       {
         lead,
         deduplication,
       },
       { status: 201 }
     );
+    res.headers.set(REQUEST_ID_HEADER, requestId);
+    return res;
   } catch (error: unknown) {
-    return handleApiError(error, "POST /api/leads error");
+    return handleApiError(error, "POST /api/leads error", requestId);
   }
-}
+});

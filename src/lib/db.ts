@@ -42,23 +42,29 @@ export const prisma =
 globalForPrisma.prisma = prisma;
 
 /**
- * Validates whether the PostgreSQL database is reachable and active.
+ * Validates whether the PostgreSQL database is reachable and active,
+ * measuring query execution latency in milliseconds.
  */
 export async function checkDatabaseConnection(): Promise<{
   connected: boolean;
+  latencyMs: number;
   error?: string;
 }> {
+  const start = performance.now();
   try {
     // Quick query to test connection
     await prisma.$queryRaw`SELECT 1`;
-    return { connected: true };
+    const latencyMs = Math.max(0, Math.round(performance.now() - start));
+    return { connected: true, latencyMs };
   } catch (err: unknown) {
+    const latencyMs = Math.max(0, Math.round(performance.now() - start));
     const message = err instanceof Error ? err.message : String(err);
     return {
       connected: false,
+      latencyMs,
       error: message.includes("Can't reach database server")
         ? "PostgreSQL database is unreachable. Ensure your PostgreSQL server or Docker container ('docker compose up -d') is running."
-        : message,
+        : "Database connection failed",
     };
   }
 }
