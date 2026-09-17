@@ -8,6 +8,7 @@ import {
   createNameCompanyKey,
   computeCompositeHash,
 } from "../deduplication/normalizer";
+import { transitionLeadStage } from "./lifecycle-service";
 
 export interface ListLeadsParams {
   userId: string;
@@ -281,6 +282,10 @@ export async function getLeadById(
       },
       emailMessages: {
         orderBy: { createdAt: "desc" },
+        take: 50,
+      },
+      followUps: {
+        orderBy: { scheduledFor: "asc" },
         take: 50,
       },
     },
@@ -649,7 +654,7 @@ export async function updateLead(
         companySize: input.companySize !== undefined ? input.companySize : existing.companySize,
         industry: input.industry !== undefined ? input.industry : existing.industry,
         location: input.location !== undefined ? input.location : existing.location,
-        stage: input.stage !== undefined ? input.stage : existing.stage,
+        stage: existing.stage,
         notes: input.notes !== undefined ? input.notes : existing.notes,
         normalizedEmail: normalizeEmail(effectiveEmail),
         normalizedLinkedInUrl: normalizeLinkedInUrl(effectiveLinkedIn),
@@ -658,17 +663,9 @@ export async function updateLead(
       },
     });
 
-    // If stage changed, log interaction atomically
+    // If stage changed, delegate to centralized lifecycle service
     if (stageChanged && input.stage) {
-      await tx.leadInteraction.create({
-        data: {
-          userId,
-          leadId,
-          type: "STAGE_CHANGE",
-          title: `Stage Changed to ${input.stage}`,
-          description: `Lead moved from ${existing.stage} to ${input.stage}.`,
-        },
-      });
+      await transitionLeadStage(userId, leadId, input.stage, undefined, tx);
     }
 
     return getLeadById(userId, leadId, tx);

@@ -11,7 +11,7 @@ import { LeadStageBadge, TemperatureBadge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDate, formatRelativeTime } from "@/lib/utils";
+import { formatDate, formatRelativeTime, cn } from "@/lib/utils";
 import {
   ArrowLeft,
   Mail,
@@ -35,8 +35,10 @@ import {
   MessageSquare,
   PhoneCall,
   Loader2,
+  CalendarClock,
+  AlertTriangle,
 } from "lucide-react";
-import { LeadStage, TagType } from "@prisma/client";
+import { LeadStage, TagType, FollowUpStatus } from "@prisma/client";
 
 interface TagItem {
   id: string;
@@ -77,6 +79,16 @@ export default function LeadDetailPage() {
   // Stage change state
   const [updatingStage, setUpdatingStage] = React.useState(false);
   const [stageUpdatedNotice, setStageUpdatedNotice] = React.useState(false);
+
+  // Follow-ups state
+  const [followUps, setFollowUps] = React.useState<any[]>([]);
+  const [loadingFollowUps, setLoadingFollowUps] = React.useState(false);
+  const [showScheduleForm, setShowScheduleForm] = React.useState(false);
+  const [followUpDate, setFollowUpDate] = React.useState("");
+  const [followUpTime, setFollowUpTime] = React.useState("09:00");
+  const [followUpNotes, setFollowUpNotes] = React.useState("");
+  const [savingFollowUp, setSavingFollowUp] = React.useState(false);
+  const [showFollowUpHistory, setShowFollowUpHistory] = React.useState(false);
 
   // Interactions list state
   const [interactions, setInteractions] = React.useState<InteractionItem[]>([]);
@@ -138,11 +150,28 @@ export default function LeadDetailPage() {
     }
   }, []);
 
+  // Fetch follow-ups from dedicated endpoint
+  const fetchFollowUps = React.useCallback(async () => {
+    setLoadingFollowUps(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/follow-ups`);
+      if (res.ok) {
+        const data = await res.json();
+        setFollowUps(data.followUps || []);
+      }
+    } catch {
+      // Non-fatal fallback
+    } finally {
+      setLoadingFollowUps(false);
+    }
+  }, [leadId]);
+
   React.useEffect(() => {
     fetchLead();
     fetchInteractions();
+    fetchFollowUps();
     fetchTags();
-  }, [fetchLead, fetchInteractions, fetchTags]);
+  }, [fetchLead, fetchInteractions, fetchFollowUps, fetchTags]);
 
   // Copy email
   const handleCopyEmail = (email: string) => {
@@ -170,12 +199,13 @@ export default function LeadDetailPage() {
     }
   };
 
-  // Stage change handler
+  // Stage change handler via centralized lifecycle endpoint
   const handleStageChange = async (newStage: LeadStage) => {
+    if (newStage === lead?.stage) return;
     setUpdatingStage(true);
     try {
-      const res = await fetch(`/api/leads/${leadId}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/leads/${leadId}/stage`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage: newStage }),
       });
@@ -188,6 +218,71 @@ export default function LeadDetailPage() {
       alert("Failed to update pipeline stage");
     } finally {
       setUpdatingStage(false);
+    }
+  };
+
+  // Follow-up handlers
+  const handleScheduleFollowUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!followUpDate) return;
+    setSavingFollowUp(true);
+    try {
+      const dateTimeString = `${followUpDate}T${followUpTime || "09:00"}:00`;
+      const scheduledDate = new Date(dateTimeString);
+      if (isNaN(scheduledDate.getTime())) {
+        throw new Error("Invalid date selected");
+      }
+
+      const res = await fetch(`/api/leads/${leadId}/follow-ups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduledFor: scheduledDate.toISOString(),
+          notes: followUpNotes.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to schedule follow-up");
+      }
+
+      setFollowUpDate("");
+      setFollowUpNotes("");
+      setShowScheduleForm(false);
+      await fetchFollowUps();
+      await fetchInteractions();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to schedule follow-up");
+    } finally {
+      setSavingFollowUp(false);
+    }
+  };
+
+  const handleCompleteFollowUp = async (followUpId: string) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/follow-ups/${followUpId}/complete`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Failed to complete follow-up");
+      await fetchFollowUps();
+      await fetchLead();
+      await fetchInteractions();
+    } catch {
+      alert("Failed to complete follow-up");
+    }
+  };
+
+  const handleCancelFollowUp = async (followUpId: string) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/follow-ups/${followUpId}/cancel`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Failed to cancel follow-up");
+      await fetchFollowUps();
+      await fetchInteractions();
+    } catch {
+      alert("Failed to cancel follow-up");
     }
   };
 
@@ -853,8 +948,224 @@ export default function LeadDetailPage() {
           </Tabs>
         </div>
 
-        {/* Right Column: Company & Quick Actions */}
+        {/* Right Column: Follow-Up Workflow & Company Overview */}
         <div className="space-y-6">
+          {/* Follow-Up Management Card */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <CalendarClock className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Follow-Up Workflow
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Schedule reminders and manage touchpoint lifecycle
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 px-2.5"
+                onClick={() => setShowScheduleForm(!showScheduleForm)}
+              >
+                <PlusCircle className="h-3.5 w-3.5" />
+                {showScheduleForm ? "Cancel" : "Schedule"}
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              {/* Inline Schedule Form */}
+              {showScheduleForm && (
+                <form
+                  onSubmit={handleScheduleFollowUp}
+                  className="p-3 border border-border rounded-lg bg-surface-elevated space-y-2.5 animate-in fade-in"
+                >
+                  <div className="font-semibold text-foreground text-xs">
+                    Schedule Next Follow-Up
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">Date</label>
+                      <input
+                        type="date"
+                        required
+                        value={followUpDate}
+                        onChange={(e) => setFollowUpDate(e.target.value)}
+                        className="h-8 w-full rounded border border-border bg-surface px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">Time</label>
+                      <input
+                        type="time"
+                        value={followUpTime}
+                        onChange={(e) => setFollowUpTime(e.target.value)}
+                        className="h-8 w-full rounded border border-border bg-surface px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground block mb-1">Notes (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Check in on contract proposal, send portfolio..."
+                      value={followUpNotes}
+                      onChange={(e) => setFollowUpNotes(e.target.value)}
+                      className="h-8 w-full rounded border border-border bg-surface px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => setShowScheduleForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={savingFollowUp || !followUpDate}
+                      className="h-7 text-xs px-3"
+                    >
+                      {savingFollowUp ? "Saving…" : "Save Follow-Up"}
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {/* Active Follow-Ups */}
+              {(() => {
+                const active = followUps.filter((f) => f.status === "SCHEDULED");
+                const hasOverdue = active.some((f) => f.isOverdue);
+
+                if (active.length === 0) {
+                  return (
+                    <div className="p-3 rounded-lg border border-dashed border-border text-center text-muted-foreground py-4">
+                      <span>No follow-up currently scheduled.</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {hasOverdue && (
+                      <div className="flex items-center gap-1.5 p-2 rounded-md bg-destructive/10 border border-destructive/25 text-xs text-destructive font-medium">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span>You have overdue follow-up tasks for this prospect!</span>
+                      </div>
+                    )}
+                    {active.map((f) => (
+                      <div
+                        key={f.id}
+                        className={cn(
+                          "p-2.5 rounded-lg border flex flex-col gap-1.5 transition-colors",
+                          f.isOverdue
+                            ? "border-destructive/40 bg-destructive/5"
+                            : "border-border bg-surface"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-foreground">
+                              Step #{f.stepNumber}
+                            </span>
+                            {f.isOverdue ? (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground">
+                                Overdue
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] bg-primary/10 text-primary border border-primary/20">
+                                Scheduled
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-muted-foreground font-mono">
+                            {formatDate(f.scheduledFor)}
+                          </span>
+                        </div>
+
+                        {f.notes && (
+                          <p className="text-muted-foreground text-[11px] italic">
+                            &ldquo;{f.notes}&rdquo;
+                          </p>
+                        )}
+
+                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/50">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+                            onClick={() => handleCancelFollowUp(f.id)}
+                            title="Cancel follow-up"
+                          >
+                            <X className="h-3 w-3 mr-0.5" /> Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2.5 text-[11px] text-success border-success/30 hover:bg-success/10"
+                            onClick={() => handleCompleteFollowUp(f.id)}
+                            title="Mark follow-up completed"
+                          >
+                            <Check className="h-3 w-3 mr-0.5" /> Complete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* History Toggle for Completed / Cancelled */}
+              {(() => {
+                const history = followUps.filter((f) => f.status !== "SCHEDULED");
+                if (history.length === 0) return null;
+
+                return (
+                  <div className="pt-2 border-t border-border">
+                    <button
+                      type="button"
+                      onClick={() => setShowFollowUpHistory(!showFollowUpHistory)}
+                      className="w-full flex items-center justify-between text-[11px] text-muted-foreground hover:text-foreground font-medium"
+                    >
+                      <span>Follow-Up History ({history.length})</span>
+                      <span>{showFollowUpHistory ? "Hide" : "Show"}</span>
+                    </button>
+                    {showFollowUpHistory && (
+                      <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
+                        {history.map((h) => (
+                          <div
+                            key={h.id}
+                            className="p-2 rounded bg-surface/50 border border-border/60 text-[11px] flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  "px-1.5 py-0.2 rounded text-[9px] font-semibold uppercase",
+                                  h.status === "SENT"
+                                    ? "bg-success/15 text-success"
+                                    : "bg-muted text-muted-foreground"
+                                )}
+                              >
+                                {h.status === "SENT" ? "Completed" : "Cancelled"}
+                              </span>
+                              <span className="text-foreground">Step #{h.stepNumber}</span>
+                            </div>
+                            <span className="text-muted-foreground font-mono text-[10px]">
+                              {formatDate(h.sentAt || h.scheduledFor)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-sm">

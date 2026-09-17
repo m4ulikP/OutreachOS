@@ -51,7 +51,7 @@ export function LeadStageBadge({ stage }: { stage: LeadStage | string }) {
     case "MEETING_SCHEDULED":
       return <Badge variant="primary" className="font-semibold bg-primary/15 border-primary/30">Meeting Booked</Badge>;
     case "CLIENT":
-      return <Badge variant="success" className="bg-success text-success-foreground font-semibold border-success">Client</Badge>;
+      return <Badge variant="success" className="bg-success text-success-foreground font-semibold border-success">Client Won</Badge>;
     case "CLOSED_LOST":
       return <Badge variant="destructive">Closed Lost</Badge>;
     default:

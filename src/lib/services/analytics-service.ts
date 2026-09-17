@@ -8,7 +8,12 @@ export interface DashboardMetrics {
   positiveReplies: number;
   meetingsBooked: number;
   clientsClosed: number;
+  closedLostLeads: number;
+  activeProspects: number;
+  pendingFollowUps: number;
+  overdueFollowUps: number;
   monthlyConversionRate: number; // percentage 0-100
+  stageCounts: Record<LeadStage, number>;
   funnel: {
     stage: string;
     label: string;
@@ -70,6 +75,8 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       interactions,
       campaigns,
       meetings,
+      pendingFollowUps,
+      overdueFollowUps,
     ] = await Promise.all([
       // Aggregation 1: Total leads count (PostgreSQL index count)
       prisma.lead.count({
@@ -157,6 +164,23 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
           },
         },
       }),
+
+      // Aggregation 10: Pending follow-ups
+      prisma.followUp.count({
+        where: {
+          status: "SCHEDULED",
+          lead: { userId },
+        },
+      }),
+
+      // Aggregation 11: Overdue follow-ups
+      prisma.followUp.count({
+        where: {
+          status: "SCHEDULED",
+          scheduledFor: { lt: new Date() },
+          lead: { userId },
+        },
+      }),
     ]);
 
     // Map database stage groupings to stageCounts record
@@ -179,8 +203,13 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
     const positiveReplies =
       stageCounts.POSITIVE_REPLY + stageCounts.MEETING_SCHEDULED + stageCounts.CLIENT;
 
-    // 3. Clients closed
+    // 3. Clients closed and Closed Lost
     const clientsClosed = stageCounts.CLIENT;
+    const closedLostLeads = stageCounts.CLOSED_LOST;
+    const activeProspects = Math.max(
+      0,
+      totalLeads - stageCounts.CLIENT - stageCounts.CLOSED_LOST
+    );
 
     // 4. Calculate rates
     const totalOutreachAttempts = emailCount > 0 ? emailCount : stageCounts.CONTACTED;
@@ -250,6 +279,11 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
 
     return {
       totalLeads,
+      activeProspects,
+      closedLostLeads,
+      pendingFollowUps,
+      overdueFollowUps,
+      stageCounts,
       emailsSent: emailCount,
       replyRate,
       positiveReplies,
@@ -267,6 +301,20 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
     // Return safe empty state if database is still starting or zero-data
     return {
       totalLeads: 0,
+      activeProspects: 0,
+      closedLostLeads: 0,
+      pendingFollowUps: 0,
+      overdueFollowUps: 0,
+      stageCounts: {
+        NEW: 0,
+        CONTACTED: 0,
+        FOLLOW_UP: 0,
+        REPLIED: 0,
+        POSITIVE_REPLY: 0,
+        MEETING_SCHEDULED: 0,
+        CLIENT: 0,
+        CLOSED_LOST: 0,
+      },
       emailsSent: 0,
       replyRate: 0,
       positiveReplies: 0,
