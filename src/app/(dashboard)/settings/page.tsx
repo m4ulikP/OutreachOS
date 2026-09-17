@@ -70,7 +70,7 @@ export default function SettingsPage() {
                   label="Full Name"
                   name="fullName"
                   autoComplete="name"
-                  defaultValue="Alex Vance"
+                  defaultValue="Maulik Pandey"
                 />
                 <Input
                   label="Email Address"
@@ -78,7 +78,7 @@ export default function SettingsPage() {
                   type="email"
                   autoComplete="email"
                   spellCheck={false}
-                  defaultValue="alex@outreachos.dev"
+                  defaultValue="maulik@outreachos.dev"
                 />
                 <Input
                   label="Professional Title"
@@ -91,7 +91,7 @@ export default function SettingsPage() {
                   type="url"
                   autoComplete="url"
                   spellCheck={false}
-                  defaultValue="https://alexvance.dev"
+                  defaultValue="https://maulikpandey.dev"
                 />
                 <Button type="submit" size="sm">Save Profile</Button>
               </form>
@@ -191,7 +191,7 @@ export default function SettingsPage() {
                   name="smtpFrom"
                   type="email"
                   spellCheck={false}
-                  placeholder="alex@yourdomain.com…"
+                  placeholder="maulik@yourdomain.com…"
                 />
                 <Button type="submit" size="sm">Save Email Configuration</Button>
               </form>

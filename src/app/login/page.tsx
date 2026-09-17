@@ -52,8 +52,8 @@ function LoginForm() {
     setError(null);
     try {
       const res = await signIn("credentials", {
-        email: "alex@outreachos.dev",
-        name: "Alex Vance",
+        email: "maulik@outreachos.dev",
+        name: "Maulik Pandey",
         redirect: false,
         callbackUrl,
       });
@@ -124,7 +124,7 @@ function LoginForm() {
               name="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Alex Vance"
+              placeholder="Maulik Pandey"
               className="h-9 w-full rounded-md border border-border bg-surface-elevated px-3 text-xs text-foreground placeholder:text-foreground-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
@@ -156,7 +156,7 @@ function LoginForm() {
             className="w-full text-xs gap-1.5 justify-center"
           >
             <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-            Sign in as Alex Vance (Dev Account)
+            Sign in as Maulik Pandey (Dev Account)
           </Button>
         </div>
       </div>

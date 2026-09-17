@@ -206,7 +206,7 @@ export async function listLeads(params: ListLeadsParams) {
   const safePageSize = Math.min(Math.max(1, pageSize), 100);
   const skip = (safePage - 1) * safePageSize;
 
-  const [leads, total] = await Promise.all([
+  const [leads, total, stageGroups] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy,
@@ -222,7 +222,27 @@ export async function listLeads(params: ListLeadsParams) {
       },
     }),
     prisma.lead.count({ where }),
+    prisma.lead.groupBy({
+      by: ["stage"],
+      where: { userId },
+      _count: { _all: true },
+    }),
   ]);
+
+  const stageCounts: Record<LeadStage, number> = {
+    NEW: 0,
+    CONTACTED: 0,
+    FOLLOW_UP: 0,
+    REPLIED: 0,
+    POSITIVE_REPLY: 0,
+    MEETING_SCHEDULED: 0,
+    CLIENT: 0,
+    CLOSED_LOST: 0,
+  };
+
+  for (const group of stageGroups) {
+    stageCounts[group.stage] = group._count._all;
+  }
 
   return {
     leads,
@@ -230,6 +250,7 @@ export async function listLeads(params: ListLeadsParams) {
     page: safePage,
     pageSize: safePageSize,
     totalPages: Math.ceil(total / safePageSize),
+    stageCounts,
   };
 }
 

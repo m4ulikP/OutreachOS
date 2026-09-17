@@ -93,10 +93,10 @@ export function TopNav({ onMobileMenuToggle, user }: TopNavProps) {
             className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-elevated border border-border text-foreground font-medium text-xs select-none uppercase"
             aria-hidden="true"
           >
-            {user?.name?.[0] || user?.email?.[0] || "A"}
+            {user?.name?.[0] || user?.email?.[0] || "M"}
           </div>
           <span className="text-xs font-medium text-foreground truncate max-w-[130px]">
-            {user?.email || "alex@outreachos.dev"}
+            {user?.email || "maulik@outreachos.dev"}
           </span>
         </div>
       </div>

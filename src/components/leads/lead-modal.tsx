@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { LeadStage, TagType } from "@prisma/client";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle, Loader2 } from "lucide-react";
 
 export interface LeadFormData {
   firstName: string;
@@ -106,26 +106,86 @@ export function LeadModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
     setDuplicateWarning(null);
+
+    // Client-side validation:
+    // 1. Email format if provided
+    if (form.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email.trim())) {
+        setError("Please enter a valid email address format.");
+        return;
+      }
+    }
+
+    // 2. LinkedIn format if provided
+    if (form.linkedInUrl.trim()) {
+      const val = form.linkedInUrl.trim();
+      const withProto = val.startsWith("http://") || val.startsWith("https://") ? val : `https://${val}`;
+      try {
+        const parsed = new URL(withProto);
+        if (!parsed.hostname.toLowerCase().includes("linkedin.com")) {
+          setError("LinkedIn URL must be a valid linkedin.com profile URL.");
+          return;
+        }
+      } catch {
+        setError("Please enter a valid LinkedIn URL.");
+        return;
+      }
+    }
+
+    // 3. Minimum identity info required
+    if (
+      !form.firstName.trim() &&
+      !form.lastName.trim() &&
+      !form.email.trim() &&
+      !form.linkedInUrl.trim()
+    ) {
+      setError("Please provide at least a name, email, or LinkedIn URL for this lead.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const isEdit = Boolean(editLead?.id);
       const url = isEdit ? `/api/leads/${editLead!.id}` : "/api/leads";
       const method = isEdit ? "PATCH" : "POST";
 
+      // Construct clean payload strictly adhering to server schema
+      const payload: Record<string, unknown> = {};
+
+      if (form.firstName.trim()) payload.firstName = form.firstName.trim();
+      if (form.lastName.trim()) payload.lastName = form.lastName.trim();
+      if (form.jobTitle.trim()) payload.jobTitle = form.jobTitle.trim();
+      if (form.email.trim()) payload.email = form.email.trim();
+      if (form.phone.trim()) payload.phone = form.phone.trim();
+      if (form.website.trim()) payload.website = form.website.trim();
+      if (form.linkedInUrl.trim()) payload.linkedInUrl = form.linkedInUrl.trim();
+      if (form.companyName.trim()) payload.companyName = form.companyName.trim();
+      if (form.companyDomain.trim()) payload.companyDomain = form.companyDomain.trim();
+      if (form.companySize.trim()) payload.companySize = form.companySize.trim();
+      if (form.industry.trim()) payload.industry = form.industry.trim();
+      if (form.location.trim()) payload.location = form.location.trim();
+      if (form.notes.trim()) payload.notes = form.notes.trim();
+      payload.stage = form.stage;
+
+      if (!isEdit && form.tagType) {
+        payload.tagType = form.tagType;
+      }
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         if (res.status === 409 && data.deduplication) {
-          setDuplicateWarning(data.deduplication.reason);
+          setDuplicateWarning(data.deduplication.reason || "A duplicate lead already exists in your workspace.");
           setLoading(false);
           return;
         }
@@ -150,25 +210,31 @@ export function LeadModal({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={editLead ? "Edit Lead" : "Add New Prospect"}
+      title={editLead ? "Edit Lead Profile" : "Add New Prospect"}
       description={
         editLead
-          ? "Update lead details, stage, and company information."
+          ? "Update contact details, pipeline stage, and notes."
           : "Create a prospect record. Server-side deduplication will check email, LinkedIn, and name."
       }
       className="max-w-2xl max-h-[90vh] overflow-y-auto"
     >
       <form onSubmit={handleSubmit} className="space-y-4 pt-2">
         {error && (
-          <div role="alert" className="flex items-center gap-2 p-3 rounded-md bg-danger/10 border border-danger/30 text-xs text-danger">
+          <div
+            role="alert"
+            className="flex items-center gap-2 p-3 rounded-md bg-danger/10 border border-danger/30 text-xs text-danger animate-in fade-in duration-150"
+          >
             <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{error}</span>
           </div>
         )}
 
         {duplicateWarning && (
-          <div role="alert" className="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/30 text-xs text-warning">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <div
+            role="alert"
+            className="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/30 text-xs text-warning animate-in fade-in duration-150"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <span className="font-semibold">Duplicate Lead Detected: </span>
               <span>{duplicateWarning}</span>
@@ -185,6 +251,7 @@ export function LeadModal({
             placeholder="e.g. Sarah…"
             value={form.firstName}
             onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+            disabled={loading}
           />
           <Input
             label="Last Name"
@@ -193,6 +260,7 @@ export function LeadModal({
             placeholder="e.g. Connor…"
             value={form.lastName}
             onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+            disabled={loading}
           />
         </div>
 
@@ -207,6 +275,7 @@ export function LeadModal({
             placeholder="sarah@example.com…"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
+            disabled={loading}
           />
           <Input
             label="Phone"
@@ -217,6 +286,7 @@ export function LeadModal({
             placeholder="+1 (555) 019-2834…"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            disabled={loading}
           />
         </div>
 
@@ -228,6 +298,7 @@ export function LeadModal({
             placeholder="e.g. VP of Product…"
             value={form.jobTitle}
             onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+            disabled={loading}
           />
           <Input
             label="Company Name"
@@ -236,6 +307,7 @@ export function LeadModal({
             placeholder="e.g. Acme Corp…"
             value={form.companyName}
             onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+            disabled={loading}
           />
         </div>
 
@@ -249,6 +321,7 @@ export function LeadModal({
             placeholder="https://linkedin.com/in/sarah-connor…"
             value={form.linkedInUrl}
             onChange={(e) => setForm({ ...form, linkedInUrl: e.target.value })}
+            disabled={loading}
           />
           <Input
             label="Website or Domain"
@@ -258,6 +331,7 @@ export function LeadModal({
             placeholder="https://acme.com…"
             value={form.website}
             onChange={(e) => setForm({ ...form, website: e.target.value })}
+            disabled={loading}
           />
         </div>
 
@@ -269,6 +343,7 @@ export function LeadModal({
             placeholder="e.g. B2B SaaS…"
             value={form.industry}
             onChange={(e) => setForm({ ...form, industry: e.target.value })}
+            disabled={loading}
           />
           <Input
             label="Location"
@@ -276,12 +351,14 @@ export function LeadModal({
             placeholder="e.g. Austin, TX…"
             value={form.location}
             onChange={(e) => setForm({ ...form, location: e.target.value })}
+            disabled={loading}
           />
           <Select
             label="Company Size"
             name="companySize"
             value={form.companySize}
             onChange={(e) => setForm({ ...form, companySize: e.target.value })}
+            disabled={loading}
           >
             <option value="">Select size</option>
             <option value="1-10">1-10 employees</option>
@@ -299,6 +376,7 @@ export function LeadModal({
             name="stage"
             value={form.stage}
             onChange={(e) => setForm({ ...form, stage: e.target.value as LeadStage })}
+            disabled={loading}
           >
             <option value={LeadStage.NEW}>NEW</option>
             <option value={LeadStage.CONTACTED}>CONTACTED</option>
@@ -312,10 +390,11 @@ export function LeadModal({
 
           {!editLead && (
             <Select
-              label="Temperature Tag"
+              label="Initial Temperature"
               name="tagType"
               value={form.tagType}
               onChange={(e) => setForm({ ...form, tagType: e.target.value as TagType })}
+              disabled={loading}
             >
               <option value={TagType.HOT}>HOT (Active buying intent)</option>
               <option value={TagType.WARM}>WARM (Standard prospect)</option>
@@ -338,7 +417,8 @@ export function LeadModal({
             placeholder="Specific freelance opportunities, project budget notes, tech stack details…"
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="flex w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            disabled={loading}
+            className="flex w-full rounded-md border border-input bg-card px-3 py-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
           />
         </div>
 
@@ -353,8 +433,17 @@ export function LeadModal({
           >
             Cancel
           </Button>
-          <Button type="submit" size="sm" disabled={loading}>
-            {loading ? "Saving…" : editLead ? "Update Lead" : "Create Lead"}
+          <Button type="submit" size="sm" disabled={loading} className="gap-1.5">
+            {loading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Saving…</span>
+              </>
+            ) : editLead ? (
+              "Update Lead"
+            ) : (
+              "Create Lead"
+            )}
           </Button>
         </div>
       </form>

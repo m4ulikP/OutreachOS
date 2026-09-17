@@ -104,15 +104,15 @@ export const NAV_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
 export function Sidebar({ className, user }: SidebarProps) {
   const pathname = usePathname();
 
-  const displayName = user?.name || user?.email?.split("@")[0] || "Alex Vance";
-  const displayEmail = user?.email || "alex@outreachos.dev";
+  const displayName = user?.name || user?.email?.split("@")[0] || "Maulik Pandey";
+  const displayEmail = user?.email || "maulik@outreachos.dev";
   const initials = (
     displayName
       .split(" ")
       .map((w) => w[0])
       .filter(Boolean)
       .join("")
-      .slice(0, 2) || "AV"
+      .slice(0, 2) || "MP"
   ).toUpperCase();
 
   return (

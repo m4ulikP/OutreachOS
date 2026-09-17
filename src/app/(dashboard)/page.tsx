@@ -58,7 +58,7 @@ export default async function DashboardPage() {
             <span className="text-foreground font-semibold">Freelancer Sales Studio</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Good morning, {user.name ? user.name.split(" ")[0] : "Alex"}.
+            Good morning, {user.name ? user.name.split(" ")[0] : "Maulik"}.
           </h1>
           <p className="text-xs text-foreground-muted mt-1">
             {positiveReplies > 0

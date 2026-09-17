@@ -3,14 +3,22 @@
 import * as React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { LeadStageBadge, TemperatureBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LeadFilters, FilterState } from "@/components/leads/lead-filters";
 import { LeadModal } from "@/components/leads/lead-modal";
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
-import { formatDate, formatRelativeTime } from "@/lib/utils";
+import { BulkActionBar } from "@/components/leads/bulk-action-bar";
+import { formatRelativeTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
   UserPlus,
@@ -25,7 +33,9 @@ import {
   Copy,
   Check,
   Search,
-  UploadCloud,
+  Building,
+  Calendar,
+  Layers,
 } from "lucide-react";
 import { LeadStage, TagType } from "@prisma/client";
 
@@ -51,45 +61,85 @@ interface LeadItem {
   } | null;
   tagAssignments?: {
     tag: {
+      id: string;
       type: TagType;
       name: string;
     };
   }[];
 }
 
+interface TagItem {
+  id: string;
+  name: string;
+  type: TagType;
+}
+
 const DEFAULT_FILTERS: FilterState = {
   search: "",
   stage: "",
   temperature: "",
-  industry: "",
-  location: "",
+  tag: "",
+  company: "",
+  createdAfter: "",
+  createdBefore: "",
   sortBy: "createdAt",
   sortOrder: "desc",
 };
 
-const STAGE_TABS: { label: string; stage: string; countKey?: string }[] = [
-  { label: "All Prospects", stage: "" },
-  { label: "New", stage: LeadStage.NEW },
-  { label: "Contacted", stage: LeadStage.CONTACTED },
-  { label: "Follow-up", stage: LeadStage.FOLLOW_UP },
-  { label: "Replied", stage: LeadStage.REPLIED },
-  { label: "Warm Positive", stage: LeadStage.POSITIVE_REPLY },
-  { label: "Calls Booked", stage: LeadStage.MEETING_SCHEDULED },
-  { label: "Clients Won", stage: LeadStage.CLIENT },
+const STAGE_CONFIG: { stage: string; label: string; key: LeadStage | "ALL" }[] = [
+  { stage: "", label: "All Prospects", key: "ALL" },
+  { stage: LeadStage.NEW, label: "New", key: LeadStage.NEW },
+  { stage: LeadStage.CONTACTED, label: "Contacted", key: LeadStage.CONTACTED },
+  { stage: LeadStage.FOLLOW_UP, label: "Follow-up", key: LeadStage.FOLLOW_UP },
+  { stage: LeadStage.REPLIED, label: "Replied", key: LeadStage.REPLIED },
+  { stage: LeadStage.POSITIVE_REPLY, label: "Positive Reply", key: LeadStage.POSITIVE_REPLY },
+  { stage: LeadStage.MEETING_SCHEDULED, label: "Discovery Call", key: LeadStage.MEETING_SCHEDULED },
+  { stage: LeadStage.CLIENT, label: "Client Won", key: LeadStage.CLIENT },
+  { stage: LeadStage.CLOSED_LOST, label: "Closed Lost", key: LeadStage.CLOSED_LOST },
 ];
 
 export default function LeadsPage() {
   const [leads, setLeads] = React.useState<LeadItem[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(15);
   const [totalPages, setTotalPages] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [dbError, setDbError] = React.useState<boolean>(false);
   const [copiedEmailId, setCopiedEmailId] = React.useState<string | null>(null);
 
+  // Tenant-scoped stage counts for ribbon
+  const [stageCounts, setStageCounts] = React.useState<Record<LeadStage, number>>({
+    NEW: 0,
+    CONTACTED: 0,
+    FOLLOW_UP: 0,
+    REPLIED: 0,
+    POSITIVE_REPLY: 0,
+    MEETING_SCHEDULED: 0,
+    CLIENT: 0,
+    CLOSED_LOST: 0,
+  });
+
+  // Available tags for filters and bulk actions
+  const [availableTags, setAvailableTags] = React.useState<TagItem[]>([]);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  // Filter state
   const [filters, setFilters] = React.useState<FilterState>(DEFAULT_FILTERS);
 
-  // Sync stage if query parameter is present in URL on mount
+  // Debounced search query
+  const [debouncedSearch, setDebouncedSearch] = React.useState(filters.search);
+
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [filters.search]);
+
+  // Sync stage if query parameter is in URL on mount
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       const paramStage = new URLSearchParams(window.location.search).get("stage");
@@ -97,6 +147,22 @@ export default function LeadsPage() {
         setFilters((prev) => ({ ...prev, stage: paramStage }));
       }
     }
+  }, []);
+
+  // Fetch available tags once on mount
+  React.useEffect(() => {
+    async function loadTags() {
+      try {
+        const res = await fetch("/api/tags");
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableTags(data.tags || []);
+        }
+      } catch {
+        // Non-fatal if tags fail to load
+      }
+    }
+    loadTags();
   }, []);
 
   // Modals
@@ -110,16 +176,18 @@ export default function LeadsPage() {
     try {
       const params = new URLSearchParams({
         page: String(page),
-        pageSize: "15",
+        pageSize: String(pageSize),
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
       });
 
-      if (filters.search) params.set("search", filters.search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       if (filters.stage) params.set("stage", filters.stage);
       if (filters.temperature) params.set("temperature", filters.temperature);
-      if (filters.industry) params.set("industry", filters.industry);
-      if (filters.location) params.set("location", filters.location);
+      if (filters.tag) params.set("tag", filters.tag);
+      if (filters.company) params.set("companyName", filters.company);
+      if (filters.createdAfter) params.set("createdAfter", filters.createdAfter);
+      if (filters.createdBefore) params.set("createdBefore", filters.createdBefore);
 
       const res = await fetch(`/api/leads?${params.toString()}`);
       if (!res.ok) {
@@ -130,6 +198,10 @@ export default function LeadsPage() {
       setLeads(data.leads || []);
       setTotal(data.total || 0);
       setTotalPages(data.totalPages || 1);
+
+      if (data.stageCounts) {
+        setStageCounts(data.stageCounts);
+      }
     } catch {
       setDbError(true);
       setLeads([]);
@@ -137,11 +209,16 @@ export default function LeadsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, filters]);
+  }, [page, pageSize, filters.sortBy, filters.sortOrder, filters.stage, filters.temperature, filters.tag, filters.company, filters.createdAfter, filters.createdBefore, debouncedSearch]);
 
   React.useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  // Clean selection if leads change or page changes
+  React.useEffect(() => {
+    setSelectedIds([]);
+  }, [page, filters.stage]);
 
   const handleFilterChange = (newFilters: FilterState) => {
     setFilters(newFilters);
@@ -151,6 +228,21 @@ export default function LeadsPage() {
   const handleResetFilters = () => {
     setFilters(DEFAULT_FILTERS);
     setPage(1);
+  };
+
+  // Selection handlers
+  const handleSelectAllOnPage = () => {
+    if (selectedIds.length === leads.length && leads.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(leads.map((l) => l.id));
+    }
+  };
+
+  const handleToggleSelectLead = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
   };
 
   const handleCopyEmail = (leadId: string, email: string, e: React.MouseEvent) => {
@@ -163,18 +255,27 @@ export default function LeadsPage() {
     }, 1800);
   };
 
+  // Calculate global pipeline total across all stages
+  const totalPipelineCount = React.useMemo(() => {
+    return Object.values(stageCounts).reduce((acc, count) => acc + count, 0);
+  }, [stageCounts]);
+
+  const isAllOnPageSelected = leads.length > 0 && selectedIds.length === leads.length;
+
   return (
-    <div className="space-y-5 pb-12">
+    <div className="space-y-5 pb-20">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-foreground-muted mb-0.5">
             <span className="font-semibold text-foreground">Pipeline</span>
             <span>•</span>
-            <span className="tabular-nums font-mono">{total} prospects tracked</span>
+            <span className="tabular-nums font-mono">
+              {totalPipelineCount} total prospects tracked
+            </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Lead database
+            Lead Management
           </h1>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -198,40 +299,60 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* Stage Selector Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border scrollbar-none">
-        {STAGE_TABS.map((tab) => {
+      {/* Stage Navigation Ribbon with Live Tenant Counts */}
+      <div
+        role="tablist"
+        aria-label="Lead stages"
+        className="flex items-center gap-1.5 overflow-x-auto pb-1.5 border-b border-border scrollbar-none"
+      >
+        {STAGE_CONFIG.map((tab) => {
           const isActive = filters.stage === tab.stage;
+          const count =
+            tab.key === "ALL" ? totalPipelineCount : stageCounts[tab.key] || 0;
+
           return (
             <button
               key={tab.label}
+              role="tab"
+              aria-selected={isActive}
               onClick={() => {
                 setFilters((prev) => ({ ...prev, stage: tab.stage }));
                 setPage(1);
               }}
               className={cn(
-                "px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap transition-colors select-none",
+                "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all select-none",
                 isActive
-                  ? "bg-primary text-primary-foreground font-semibold"
+                  ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                   : "text-foreground-muted hover:bg-surface-elevated hover:text-foreground"
               )}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              <span
+                className={cn(
+                  "px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums",
+                  isActive
+                    ? "bg-primary-foreground/20 text-primary-foreground font-bold"
+                    : "bg-surface-elevated border border-border/80 text-foreground-muted"
+                )}
+              >
+                {count}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Filter Bar (Search + Dropdowns) */}
+      {/* Filter Bar (Search, Temperature, Tag, Company, Date, Sort) */}
       <LeadFilters
         filters={filters}
         onChange={handleFilterChange}
         onReset={handleResetFilters}
+        availableTags={availableTags}
       />
 
-      {/* Content Rendering */}
+      {/* Content Area */}
       {loading ? (
-        <div className="space-y-2 rounded-xl border border-border p-4 bg-card">
+        <div className="space-y-2.5 rounded-xl border border-border p-4 bg-card">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
@@ -239,22 +360,20 @@ export default function LeadsPage() {
           <Skeleton className="h-12 w-full" />
         </div>
       ) : dbError ? (
-        /* Database Offline State */
+        /* Database Offline / Connection Error */
         <EmptyState
           icon={<AlertCircle className="h-6 w-6 text-warning" aria-hidden="true" />}
           title="Database Connection Needed"
-          description="OutreachOS requires an active PostgreSQL database to store and query leads. Start your local database with 'docker compose up -d' or configure DATABASE_URL."
+          description="OutreachOS requires an active PostgreSQL database to store and query leads. Please verify your connection status."
           action={
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchLeads}
-                className="text-xs"
-              >
-                Retry Connection
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchLeads}
+              className="text-xs"
+            >
+              Retry Connection
+            </Button>
           }
           className="py-16"
         />
@@ -263,17 +382,17 @@ export default function LeadsPage() {
         <EmptyState
           icon={<Users className="h-6 w-6" aria-hidden="true" />}
           title={
-            filters.search || filters.stage || filters.temperature
+            filters.search || filters.stage || filters.temperature || filters.tag || filters.company
               ? "No prospects match your filter criteria"
-              : "Your lead pipeline is empty"
+              : "Maulik, your lead pipeline is empty"
           }
           description={
-            filters.search || filters.stage || filters.temperature
+            filters.search || filters.stage || filters.temperature || filters.tag || filters.company
               ? "Try broadening your search query or selecting a different stage tab above."
-              : "Capture prospects manually or discover target clients in the Client Finder."
+              : "Capture prospects manually or discover target clients in the Client Finder to begin booking meetings."
           }
           action={
-            filters.search || filters.stage || filters.temperature ? (
+            filters.search || filters.stage || filters.temperature || filters.tag || filters.company ? (
               <Button variant="outline" size="sm" onClick={handleResetFilters}>
                 Reset All Filters
               </Button>
@@ -302,28 +421,57 @@ export default function LeadsPage() {
           className="py-16"
         />
       ) : (
-        /* Data Table with Rich Freelancer Context */
+        /* Lead Data Presentation */
         <div className="space-y-3">
-          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
+          {/* Desktop Table View */}
+          <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden shadow-xs">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[240px]">Prospect & Role</TableHead>
+                  {/* Select All Checkbox */}
+                  <TableHead className="w-10 px-3">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all leads on current page"
+                      checked={isAllOnPageSelected}
+                      onChange={handleSelectAllOnPage}
+                      className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                    />
+                  </TableHead>
+                  <TableHead className="w-[230px]">Prospect & Role</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Contact Channel</TableHead>
                   <TableHead>Stage</TableHead>
-                  <TableHead>Temperature</TableHead>
+                  <TableHead>Temperature & Tags</TableHead>
                   <TableHead>Last Activity</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right w-24">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {leads.map((lead) => {
                   const tempTag = lead.tagAssignments?.[0]?.tag?.type || "WARM";
                   const isCopied = copiedEmailId === lead.id;
+                  const isSelected = selectedIds.includes(lead.id);
 
                   return (
-                    <TableRow key={lead.id} className="group hover:bg-muted/30">
+                    <TableRow
+                      key={lead.id}
+                      className={cn(
+                        "group transition-colors",
+                        isSelected ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30"
+                      )}
+                    >
+                      {/* Selection Checkbox */}
+                      <TableCell className="px-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${lead.fullName}`}
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectLead(lead.id)}
+                          className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                        />
+                      </TableCell>
+
                       {/* Name & Title */}
                       <TableCell className="font-medium">
                         <div className="flex flex-col min-w-0">
@@ -360,7 +508,7 @@ export default function LeadsPage() {
                       {/* Email + Quick Copy */}
                       <TableCell>
                         {lead.email ? (
-                          <div className="flex items-center gap-1.5 max-w-[170px]">
+                          <div className="flex items-center gap-1.5 max-w-[180px]">
                             <a
                               href={`mailto:${lead.email}`}
                               className="text-xs text-foreground-muted hover:text-foreground truncate"
@@ -371,7 +519,7 @@ export default function LeadsPage() {
                               type="button"
                               onClick={(e) => handleCopyEmail(lead.id, lead.email!, e)}
                               className="p-1 rounded text-foreground-subtle hover:text-foreground hover:bg-surface-elevated transition-colors shrink-0"
-                              title="Copy email to clipboard"
+                              title="Copy email"
                               aria-label={`Copy email for ${lead.fullName}`}
                             >
                               {isCopied ? (
@@ -391,9 +539,23 @@ export default function LeadsPage() {
                         <LeadStageBadge stage={lead.stage} />
                       </TableCell>
 
-                      {/* Temperature */}
+                      {/* Temperature & Tags */}
                       <TableCell>
-                        <TemperatureBadge temperature={tempTag} />
+                        <div className="flex flex-wrap items-center gap-1">
+                          <TemperatureBadge temperature={tempTag} />
+                          {lead.tagAssignments &&
+                            lead.tagAssignments
+                              .filter((ta) => ta.tag.name && ta.tag.type === "CUSTOM")
+                              .slice(0, 2)
+                              .map((ta) => (
+                                <span
+                                  key={ta.tag.id}
+                                  className="px-1.5 py-0.5 rounded bg-surface-elevated border border-border text-[10px] text-foreground-muted truncate max-w-[90px]"
+                                >
+                                  {ta.tag.name}
+                                </span>
+                              ))}
+                        </div>
                       </TableCell>
 
                       {/* Last Activity */}
@@ -413,7 +575,7 @@ export default function LeadsPage() {
                               setEditLead(lead);
                               setAddModalOpen(true);
                             }}
-                            className="h-8 w-8 text-foreground-muted hover:text-foreground"
+                            className="h-7 w-7 text-foreground-muted hover:text-foreground"
                             aria-label={`Edit prospect ${lead.fullName}`}
                           >
                             <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -422,7 +584,7 @@ export default function LeadsPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setDeleteLeadTarget(lead)}
-                            className="h-8 w-8 text-foreground-muted hover:text-danger"
+                            className="h-7 w-7 text-foreground-muted hover:text-danger"
                             aria-label={`Delete prospect ${lead.fullName}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -436,40 +598,158 @@ export default function LeadsPage() {
             </Table>
           </div>
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
-              <div className="tabular-nums font-mono">
-                Page {page} of {totalPages} ({total} total prospects)
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                  className="h-8 px-2.5 gap-1"
-                  aria-label="Go to previous page"
+          {/* Mobile Responsive Card View */}
+          <div className="md:hidden space-y-2.5">
+            <div className="flex items-center justify-between px-1 text-xs text-foreground-muted">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isAllOnPageSelected}
+                  onChange={handleSelectAllOnPage}
+                  className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                />
+                <span>Select all on page</span>
+              </label>
+              <span className="font-mono tabular-nums">{leads.length} leads</span>
+            </div>
+
+            {leads.map((lead) => {
+              const tempTag = lead.tagAssignments?.[0]?.tag?.type || "WARM";
+              const isSelected = selectedIds.includes(lead.id);
+
+              return (
+                <div
+                  key={lead.id}
+                  className={cn(
+                    "p-3.5 rounded-xl border bg-card space-y-2.5 transition-colors",
+                    isSelected ? "border-primary/50 bg-primary/5" : "border-border"
+                  )}
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                  className="h-8 px-2.5 gap-1"
-                  aria-label="Go to next page"
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSelectLead(lead.id)}
+                        className="rounded border-border text-primary focus:ring-primary h-4 w-4 mt-0.5"
+                        aria-label={`Select ${lead.fullName}`}
+                      />
+                      <div>
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          className="font-semibold text-sm text-foreground hover:underline"
+                        >
+                          {lead.fullName}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {lead.jobTitle || "Freelance Prospect"} • {lead.company?.name || "Independent"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditLead(lead);
+                          setAddModalOpen(true);
+                        }}
+                        className="h-7 w-7 text-foreground-muted"
+                        aria-label={`Edit ${lead.fullName}`}
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteLeadTarget(lead)}
+                        className="h-7 w-7 text-foreground-muted hover:text-danger"
+                        aria-label={`Delete ${lead.fullName}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-border/60">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <LeadStageBadge stage={lead.stage} />
+                      <TemperatureBadge temperature={tempTag} />
+                    </div>
+                    <span className="text-[11px] text-foreground-muted tabular-nums">
+                      {formatRelativeTime(lead.lastInteractionAt || lead.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination & Page Size Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground pt-2">
+            <div className="flex items-center gap-2">
+              <span className="tabular-nums font-mono">
+                Showing {(page - 1) * pageSize + 1}–
+                {Math.min(page * pageSize, total)} of {total} leads
+              </span>
+              <span>•</span>
+              <div className="flex items-center gap-1">
+                <span className="text-foreground-muted">Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="h-7 rounded border border-border bg-surface px-1.5 text-xs text-foreground"
+                  aria-label="Leads per page"
                 >
-                  Next
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Button>
+                  <option value="15">15</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
               </div>
             </div>
-          )}
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+                className="h-8 px-2.5 gap-1"
+                aria-label="Go to previous page"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                Previous
+              </Button>
+              <span className="px-2 font-mono tabular-nums">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+                className="h-8 px-2.5 gap-1"
+                aria-label="Go to next page"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar
+        selectedIds={selectedIds}
+        onClearSelection={() => setSelectedIds([])}
+        onSuccess={fetchLeads}
+        availableTags={availableTags}
+      />
 
       {/* Add / Edit Lead Modal */}
       <LeadModal

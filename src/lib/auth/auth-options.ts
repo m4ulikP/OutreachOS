@@ -33,8 +33,8 @@ export const authOptions: NextAuthOptions = {
       id: "credentials",
       name: "OutreachOS Studio Account",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "alex@outreachos.dev" },
-        name: { label: "Name", type: "text", placeholder: "Alex Vance" },
+        email: { label: "Email", type: "email", placeholder: "maulik@outreachos.dev" },
+        name: { label: "Name", type: "text", placeholder: "Maulik Pandey" },
       },
       async authorize(credentials) {
         if (!credentials?.email || typeof credentials.email !== "string") {
