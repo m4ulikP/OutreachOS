@@ -1,9 +1,12 @@
 import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
+import { decode } from "next-auth/jwt";
+import { authOptions, getAuthSecret } from "./auth-options";
 
 export interface AuthUser {
   id: string;
   email: string;
-  name: string;
+  name?: string | null;
 }
 
 export class UnauthorizedError extends Error {
@@ -20,50 +23,104 @@ export class ForbiddenError extends Error {
   }
 }
 
-/**
- * Default development user for initial onboarding and local testing.
- * In production, this is resolved from verified JWT sessions or secure cookies.
- */
-export const DEFAULT_DEV_USER: AuthUser = {
-  id: "usr_dev_primary",
-  email: "alex@outreachos.dev",
-  name: "Alex Vance",
-};
-
-/**
- * Extracts and validates the authenticated user from the request context.
- * NEVER trusts an unauthenticated client payload for authorization.
- */
-export async function getAuthSession(req?: NextRequest | Request): Promise<AuthUser | null> {
-  // 1. Check for custom authentication header (e.g. from middleware, API gateway, or test suites)
-  if (req) {
-    const authHeader = req.headers.get("authorization");
-    if (authHeader && authHeader.startsWith("Bearer test-user-")) {
-      const customId = authHeader.replace("Bearer ", "");
-      return {
-        id: customId,
-        email: `${customId}@example.com`,
-        name: `User ${customId}`,
-      };
-    }
-    
-    const customUserHeader = req.headers.get("x-authenticated-user-id");
-    if (customUserHeader) {
-      return {
-        id: customUserHeader,
-        email: `${customUserHeader}@outreachos.internal`,
-        name: "Test User",
-      };
-    }
+export class NotFoundError extends Error {
+  constructor(message = "Resource not found") {
+    super(message);
+    this.name = "NotFoundError";
   }
-
-  // 2. Production fallback / default development user
-  // In production with next-auth / Supabase auth, session is verified here.
-  return DEFAULT_DEV_USER;
 }
 
 /**
- * Enforces authentication. Throws UnauthorizedError if not authenticated.
+ * Extracts a signed JWT session token from request headers or cookies.
+ * Does NOT accept or trust raw unauthenticated user IDs.
+ */
+function extractRawToken(req: NextRequest | Request): string | null {
+  // 1. Check for Authorization: Bearer <signed_jwt>
+  const authHeader = req.headers.get("authorization");
+  if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+    const candidate = authHeader.slice(7).trim();
+    if (candidate) return candidate;
+  }
+
+  // 2. Check for NextRequest.cookies (Next.js server context)
+  if ("cookies" in req && typeof (req as NextRequest).cookies?.get === "function") {
+    const nextReq = req as NextRequest;
+    const cookieVal =
+      nextReq.cookies.get("__Secure-next-auth.session-token")?.value ||
+      nextReq.cookies.get("next-auth.session-token")?.value;
+    if (cookieVal) return cookieVal;
+  }
+
+  // 3. Check for standard Cookie header (Web API Request context / test runner)
+  const cookieHeader = req.headers.get("cookie");
+  if (cookieHeader) {
+    const cookies = Object.fromEntries(
+      cookieHeader.split(";").map((c) => {
+        const [k, ...v] = c.trim().split("=");
+        return [k, decodeURIComponent((v || []).join("="))];
+      })
+    );
+    return (
+      cookies["__Secure-next-auth.session-token"] ||
+      cookies["next-auth.session-token"] ||
+      null
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Extracts and cryptographically verifies the authenticated user from:
+ * 1. An incoming NextRequest or Web Request (via verified signed session cookie or Bearer JWT)
+ * 2. Or the active Server Component context (via getServerSession)
+ *
+ * NEVER trusts unauthenticated client-supplied IDs (e.g. x-authenticated-user-id).
+ * NEVER silently falls back to a shared or dev user.
+ */
+export async function getAuthSession(req?: NextRequest | Request): Promise<AuthUser | null> {
+  // If an explicit request was provided, inspect headers/cookies
+  if (req) {
+    const rawToken = extractRawToken(req);
+    if (!rawToken) {
+      return null;
+    }
+
+    try {
+      const secret = getAuthSecret();
+      const decoded = await decode({ token: rawToken, secret });
+      if (decoded && (decoded.id || decoded.sub)) {
+        return {
+          id: (decoded.id || decoded.sub) as string,
+          email: (decoded.email as string) || "",
+          name: (decoded.name as string) || null,
+        };
+      }
+      return null;
+    } catch {
+      // Signature verification failed, token expired, or malformed JWE
+      return null;
+    }
+  }
+
+  // If called without req, resolve from Next.js Server Component cookies context
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user && (session.user as { id?: string }).id) {
+      return {
+        id: (session.user as { id?: string }).id as string,
+        email: session.user.email || "",
+        name: session.user.name || null,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enforces authentication. Throws UnauthorizedError (401) if not authenticated.
  */
 export async function requireAuthUser(req?: NextRequest | Request): Promise<AuthUser> {
   const user = await getAuthSession(req);
@@ -75,7 +132,7 @@ export async function requireAuthUser(req?: NextRequest | Request): Promise<Auth
 
 /**
  * Enforces ownership of a resource.
- * Throws ForbiddenError if the resource does not belong to the user.
+ * Throws ForbiddenError (403) if the resource does not belong to the user.
  */
 export function assertResourceOwnership(resourceUserId: string, currentUserId: string): void {
   if (resourceUserId !== currentUserId) {

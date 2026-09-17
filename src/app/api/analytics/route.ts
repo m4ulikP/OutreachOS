@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth/session";
+import { handleApiError } from "@/lib/api-response";
 import { getDashboardMetrics } from "@/lib/services/analytics-service";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,7 +11,6 @@ export async function GET(req: NextRequest) {
     const metrics = await getDashboardMetrics(user.id);
     return NextResponse.json(metrics);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to fetch analytics";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(error, "GET /api/analytics error");
   }
 }

@@ -16,7 +16,9 @@ import {
   Command,
   ChevronRight,
   PlusCircle,
+  LogOut,
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 export interface NavItem {
   name: string;
@@ -28,6 +30,15 @@ export interface NavItem {
 export interface NavSection {
   title: string;
   items: NavItem[];
+}
+
+export interface SidebarProps {
+  className?: string;
+  user?: {
+    id: string;
+    email: string;
+    name?: string | null;
+  } | null;
 }
 
 export const NAV_SECTIONS: NavSection[] = [
@@ -90,8 +101,19 @@ export const NAV_SECTIONS: NavSection[] = [
 
 export const NAV_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
 
-export function Sidebar({ className }: { className?: string }) {
+export function Sidebar({ className, user }: SidebarProps) {
   const pathname = usePathname();
+
+  const displayName = user?.name || user?.email?.split("@")[0] || "Alex Vance";
+  const displayEmail = user?.email || "alex@outreachos.dev";
+  const initials = (
+    displayName
+      .split(" ")
+      .map((w) => w[0])
+      .filter(Boolean)
+      .join("")
+      .slice(0, 2) || "AV"
+  ).toUpperCase();
 
   return (
     <aside
@@ -186,17 +208,25 @@ export function Sidebar({ className }: { className?: string }) {
       <div className="p-3 border-t border-border bg-surface">
         <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-surface-elevated border border-border">
           <div className="flex h-7 w-7 rounded-full bg-primary/15 text-primary items-center justify-center font-bold text-xs border border-primary/25 shrink-0">
-            AV
+            {initials}
           </div>
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-xs font-semibold text-foreground truncate leading-tight">
-              Alex Vance
+              {displayName}
             </span>
             <span className="text-[10px] text-foreground-muted truncate leading-tight mt-0.5">
-              Freelance Consultant
+              {displayEmail}
             </span>
           </div>
-          <span className="h-2 w-2 rounded-full bg-success shrink-0" title="Workspace Active" />
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            title="Sign out of OutreachOS"
+            className="p-1 text-foreground-muted hover:text-danger rounded hover:bg-surface transition-colors"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </aside>

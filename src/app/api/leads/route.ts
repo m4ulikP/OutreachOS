@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth/session";
+import { handleApiError } from "@/lib/api-response";
 import { listLeads, createLead } from "@/lib/services/lead-service";
 import { LeadStage, TagType } from "@prisma/client";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,8 +19,13 @@ export async function GET(req: NextRequest) {
     const companyName = searchParams.get("companyName") || undefined;
     const sortBy = (searchParams.get("sortBy") as "name" | "createdAt" | "lastInteractionAt" | "stage") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") as "asc" | "desc") || "desc";
-    const page = parseInt(searchParams.get("page") || "1", 10);
-    const pageSize = parseInt(searchParams.get("pageSize") || "20", 10);
+
+    const rawPage = parseInt(searchParams.get("page") || "1", 10);
+    const rawPageSize = parseInt(searchParams.get("pageSize") || "20", 10);
+
+    // Enforce safe boundaries for pagination
+    const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
+    const pageSize = Math.max(1, Math.min(isNaN(rawPageSize) ? 20 : rawPageSize, 100));
 
     const result = await listLeads({
       userId: user.id,
@@ -35,8 +43,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to retrieve leads";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(error, "GET /api/leads error");
   }
 }
 
@@ -65,7 +72,6 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to create lead";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(error, "POST /api/leads error");
   }
 }

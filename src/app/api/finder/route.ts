@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth/session";
+import { handleApiError } from "@/lib/api-response";
 import { getLeadSourceProvider } from "@/lib/providers/lead-source";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +15,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Lead discovery failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(error, "POST /api/finder error");
   }
 }

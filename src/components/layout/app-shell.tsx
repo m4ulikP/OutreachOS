@@ -5,14 +5,23 @@ import { Sidebar } from "./sidebar";
 import { TopNav } from "./top-nav";
 import { X } from "lucide-react";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export interface AppShellProps {
+  children: React.ReactNode;
+  user?: {
+    id: string;
+    email: string;
+    name?: string | null;
+  } | null;
+}
+
+export function AppShell({ children, user }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Desktop Sidebar */}
       <div className="hidden md:flex">
-        <Sidebar className="h-screen sticky top-0" />
+        <Sidebar className="h-screen sticky top-0" user={user} />
       </div>
 
       {/* Mobile Drawer Backdrop & Drawer */}
@@ -33,14 +42,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <Sidebar className="w-full h-full border-r-0" />
+            <Sidebar className="w-full h-full border-r-0" user={user} />
           </div>
         </div>
       )}
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col min-w-0">
-        <TopNav onMobileMenuToggle={() => setMobileMenuOpen(true)} />
+        <TopNav onMobileMenuToggle={() => setMobileMenuOpen(true)} user={user} />
         <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto overflow-y-auto">
           {children}
         </main>

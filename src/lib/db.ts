@@ -1,6 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 
 if (!process.env.DATABASE_URL) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "CRITICAL CONFIGURATION ERROR: DATABASE_URL is not configured in production environment."
+    );
+  }
   process.env.DATABASE_URL =
     "postgresql://postgres:postgres@localhost:5432/outreachos?schema=public";
 }

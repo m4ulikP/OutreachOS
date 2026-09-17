@@ -13,12 +13,18 @@ import Link from "next/link";
 import { UserPlus, Search, Calendar } from "lucide-react";
 import { checkDatabaseConnection } from "@/lib/db";
 
+import { redirect } from "next/navigation";
+
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const user = await getAuthSession();
+  if (!user) {
+    redirect("/login");
+  }
+
   const dbStatus = await checkDatabaseConnection();
-  const metrics = user ? await getDashboardMetrics(user.id) : null;
+  const metrics = await getDashboardMetrics(user.id);
 
   const totalLeads = metrics?.totalLeads ?? 0;
   const emailsSent = metrics?.emailsSent ?? 0;
@@ -52,7 +58,7 @@ export default async function DashboardPage() {
             <span className="text-foreground font-semibold">Freelancer Sales Studio</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Good morning, Alex.
+            Good morning, {user.name ? user.name.split(" ")[0] : "Alex"}.
           </h1>
           <p className="text-xs text-foreground-muted mt-1">
             {positiveReplies > 0

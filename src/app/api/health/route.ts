@@ -3,6 +3,8 @@ import { checkDatabaseConnection } from "@/lib/db";
 import { getLeadSourceProvider } from "@/lib/providers/lead-source";
 import { getAIProvider } from "@/lib/providers/ai";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const dbStatus = await checkDatabaseConnection();
   const leadSource = getLeadSourceProvider();

@@ -6,9 +6,14 @@ import { ThemeToggle } from "./theme-toggle";
 
 export interface TopNavProps {
   onMobileMenuToggle?: () => void;
+  user?: {
+    id: string;
+    email: string;
+    name?: string | null;
+  } | null;
 }
 
-export function TopNav({ onMobileMenuToggle }: TopNavProps) {
+export function TopNav({ onMobileMenuToggle, user }: TopNavProps) {
   const [dbConnected, setDbConnected] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
@@ -85,13 +90,13 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
         {/* Account indicator */}
         <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-border ml-1">
           <div
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-elevated border border-border text-foreground font-medium text-xs select-none"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-elevated border border-border text-foreground font-medium text-xs select-none uppercase"
             aria-hidden="true"
           >
-            A
+            {user?.name?.[0] || user?.email?.[0] || "A"}
           </div>
           <span className="text-xs font-medium text-foreground truncate max-w-[130px]">
-            alex@outreachos.dev
+            {user?.email || "alex@outreachos.dev"}
           </span>
         </div>
       </div>
