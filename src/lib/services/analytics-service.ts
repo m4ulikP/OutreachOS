@@ -59,27 +59,107 @@ export interface DashboardMetrics {
  */
 export async function getDashboardMetrics(userId: string): Promise<DashboardMetrics> {
   try {
-    // 1. Leads by stage for this user
-    const leads = await prisma.lead.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        fullName: true,
-        firstName: true,
-        lastName: true,
-        jobTitle: true,
-        stage: true,
-        createdAt: true,
-        company: {
-          select: { name: true },
+    // 1. Concurrent database-level aggregations and bounded queries
+    const [
+      totalLeads,
+      stageGroups,
+      emailCount,
+      repliedInteractions,
+      meetingsBooked,
+      recentLeadsRaw,
+      interactions,
+      campaigns,
+      meetings,
+    ] = await Promise.all([
+      // Aggregation 1: Total leads count (PostgreSQL index count)
+      prisma.lead.count({
+        where: { userId },
+      }),
+
+      // Aggregation 2: Leads by stage (PostgreSQL GROUP BY stage)
+      prisma.lead.groupBy({
+        by: ["stage"],
+        where: { userId },
+        _count: { _all: true },
+      }),
+
+      // Aggregation 3: Emails sent count
+      prisma.emailMessage.count({
+        where: { userId },
+      }),
+
+      // Aggregation 4: Interactions for replies
+      prisma.leadInteraction.count({
+        where: {
+          userId,
+          type: "REPLY_RECEIVED",
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+      }),
 
-    const totalLeads = leads.length;
+      // Aggregation 5: Meetings booked count
+      prisma.meeting.count({
+        where: { userId },
+      }),
 
-    // Count leads by stage
+      // Bounded Query 6: Recent leads (strictly LIMIT 5)
+      prisma.lead.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          fullName: true,
+          firstName: true,
+          lastName: true,
+          jobTitle: true,
+          stage: true,
+          createdAt: true,
+          company: {
+            select: { name: true },
+          },
+        },
+      }),
+
+      // Bounded Query 7: Recent interactions (LIMIT 5)
+      prisma.leadInteraction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: {
+          lead: {
+            select: { fullName: true, firstName: true, lastName: true },
+          },
+        },
+      }),
+
+      // Bounded Query 8: Active campaigns (LIMIT 5)
+      prisma.campaign.findMany({
+        where: { userId },
+        take: 5,
+        include: {
+          _count: {
+            select: { leads: true, messages: true },
+          },
+        },
+      }),
+
+      // Bounded Query 9: Upcoming meetings (LIMIT 5)
+      prisma.meeting.findMany({
+        where: {
+          userId,
+          startTime: { gte: new Date() },
+        },
+        orderBy: { startTime: "asc" },
+        take: 5,
+        include: {
+          lead: {
+            select: { fullName: true, firstName: true, lastName: true },
+          },
+        },
+      }),
+    ]);
+
+    // Map database stage groupings to stageCounts record
     const stageCounts: Record<LeadStage, number> = {
       NEW: 0,
       CONTACTED: 0,
@@ -91,36 +171,18 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       CLOSED_LOST: 0,
     };
 
-    leads.forEach((l) => {
-      stageCounts[l.stage] = (stageCounts[l.stage] || 0) + 1;
+    stageGroups.forEach((g) => {
+      stageCounts[g.stage] = g._count._all;
     });
 
-    // 2. Emails sent & email messages
-    const emailCount = await prisma.emailMessage.count({
-      where: { userId },
-    });
-
-    // 3. Interactions for replies
-    const repliedInteractions = await prisma.leadInteraction.count({
-      where: {
-        userId,
-        type: "REPLY_RECEIVED",
-      },
-    });
-
-    // 4. Positive replies (Lead in POSITIVE_REPLY or MEETING_SCHEDULED or CLIENT stages)
+    // 2. Positive replies (Lead in POSITIVE_REPLY or MEETING_SCHEDULED or CLIENT stages)
     const positiveReplies =
       stageCounts.POSITIVE_REPLY + stageCounts.MEETING_SCHEDULED + stageCounts.CLIENT;
 
-    // 5. Meetings booked
-    const meetingsBooked = await prisma.meeting.count({
-      where: { userId },
-    });
-
-    // 6. Clients closed
+    // 3. Clients closed
     const clientsClosed = stageCounts.CLIENT;
 
-    // 7. Calculate rates
+    // 4. Calculate rates
     const totalOutreachAttempts = emailCount > 0 ? emailCount : stageCounts.CONTACTED;
     const totalReplies =
       repliedInteractions > 0
@@ -135,7 +197,7 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
     const monthlyConversionRate =
       totalLeads > 0 ? Math.min(100, (clientsClosed / totalLeads) * 100) : 0;
 
-    // 8. Lead Funnel
+    // 5. Lead Funnel
     const funnel = [
       { stage: "NEW", label: "New Leads", count: stageCounts.NEW },
       { stage: "CONTACTED", label: "Contacted", count: stageCounts.CONTACTED + stageCounts.FOLLOW_UP },
@@ -145,8 +207,8 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       { stage: "CLIENT", label: "Client", count: stageCounts.CLIENT },
     ];
 
-    // 9. Recent leads (newest 5)
-    const recentLeads = leads.slice(0, 5).map((l) => ({
+    // 6. Formatted recent leads
+    const recentLeads = recentLeadsRaw.map((l) => ({
       id: l.id,
       fullName: l.fullName || `${l.firstName || ""} ${l.lastName || ""}`.trim() || "Unnamed Lead",
       jobTitle: l.jobTitle,
@@ -155,18 +217,7 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       createdAt: l.createdAt,
     }));
 
-    // 10. Recent interactions
-    const interactions = await prisma.leadInteraction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      include: {
-        lead: {
-          select: { fullName: true, firstName: true, lastName: true },
-        },
-      },
-    });
-
+    // 7. Formatted recent interactions
     const recentInteractions = interactions.map((i) => ({
       id: i.id,
       type: i.type,
@@ -176,17 +227,7 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       createdAt: i.createdAt,
     }));
 
-    // 11. Active campaigns
-    const campaigns = await prisma.campaign.findMany({
-      where: { userId },
-      take: 5,
-      include: {
-        _count: {
-          select: { leads: true, messages: true },
-        },
-      },
-    });
-
+    // 8. Formatted active campaigns
     const activeCampaigns = campaigns.map((c) => ({
       id: c.id,
       name: c.name,
@@ -195,21 +236,7 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       sentCount: c._count.messages,
     }));
 
-    // 12. Upcoming meetings
-    const meetings = await prisma.meeting.findMany({
-      where: {
-        userId,
-        startTime: { gte: new Date() },
-      },
-      orderBy: { startTime: "asc" },
-      take: 5,
-      include: {
-        lead: {
-          select: { fullName: true, firstName: true, lastName: true },
-        },
-      },
-    });
-
+    // 9. Formatted upcoming meetings
     const upcomingMeetings = meetings.map((m) => ({
       id: m.id,
       title: m.title,
