@@ -674,15 +674,28 @@ export class ConfiguredLeadSourceProvider implements LeadSourceProvider {
   }
 }
 
+import {
+  HunterLeadDiscoveryProvider,
+  extractDomain,
+  mapSeniorityAndDepartment,
+} from "./hunter";
+
+export {
+  HunterLeadDiscoveryProvider,
+  extractDomain,
+  mapSeniorityAndDepartment,
+};
+
 /**
  * Returns the active Lead Source Provider based on environment configuration.
  *
  * Priority:
- * 1. Explicit mock request / dev simulation mode.
- * 2. Configured HTTP provider if LEAD_SOURCE_API_KEY is present.
- * 3. In development (non-production) when no key is set: returns MockLeadDiscoveryProvider
+ * 1. Explicit mock request / dev simulation mode (DISCOVERY_DEV_MODE="true").
+ * 2. If providerId === "configured-http" or "generic-http", returns generic ConfiguredLeadSourceProvider.
+ * 3. If LEAD_SOURCE_API_KEY (or HUNTER_API_KEY) is configured, returns HunterLeadDiscoveryProvider.
+ * 4. In development (non-production) when no key is set and DISCOVERY_DEV_MODE !== "false": returns MockLeadDiscoveryProvider
  *    so developers have working out-of-the-box discovery with clear mock flags.
- * 4. In production when no key is set: returns UnconfiguredLeadSourceProvider.
+ * 5. Otherwise returns UnconfiguredLeadSourceProvider.
  */
 export function getLeadSourceProvider(providerId?: string): LeadSourceProvider {
   if (
@@ -693,10 +706,25 @@ export function getLeadSourceProvider(providerId?: string): LeadSourceProvider {
     return new MockLeadDiscoveryProvider();
   }
 
-  const apiKey = process.env.LEAD_SOURCE_API_KEY;
+  const apiKey = process.env.LEAD_SOURCE_API_KEY || process.env.HUNTER_API_KEY;
   if (apiKey && apiKey.trim() !== "") {
-    return new ConfiguredLeadSourceProvider(apiKey, process.env.LEAD_SOURCE_PROVIDER_URL);
+    if (providerId === "configured-http" || providerId === "generic-http") {
+      return new ConfiguredLeadSourceProvider(apiKey, process.env.LEAD_SOURCE_PROVIDER_URL);
+    }
+    // Default configured provider is official Hunter.io
+    return new HunterLeadDiscoveryProvider(
+      apiKey,
+      process.env.HUNTER_BASE_URL || process.env.LEAD_SOURCE_PROVIDER_URL
+    );
+  }
+
+  if (providerId === "hunter") {
+    return new HunterLeadDiscoveryProvider(
+      "",
+      process.env.HUNTER_BASE_URL || process.env.LEAD_SOURCE_PROVIDER_URL
+    );
   }
 
   return new UnconfiguredLeadSourceProvider();
 }
+

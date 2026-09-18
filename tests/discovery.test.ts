@@ -7,8 +7,12 @@ import {
   MockLeadDiscoveryProvider,
   UnconfiguredLeadSourceProvider,
   ConfiguredLeadSourceProvider,
+  HunterLeadDiscoveryProvider,
   getLeadSourceProvider,
+  extractDomain,
+  mapSeniorityAndDepartment,
 } from "../src/lib/providers/lead-source";
+import * as http from "node:http";
 import {
   finderSearchSchema,
   finderImportSchema,
@@ -535,6 +539,361 @@ describe("Phase 4: Production-Grade Real Prospect Discovery Suite", () => {
       } else {
         throw err;
       }
+    }
+  });
+
+  // ==========================================
+  // 6. HUNTER.IO PROVIDER INTEGRATION & ADAPTER
+  // ==========================================
+
+  it("24. Domain extraction normalizes various input formats", () => {
+    assert.equal(extractDomain("https://stripe.com/pricing"), "stripe.com");
+    assert.equal(extractDomain("http://www.stripe.com/about?ref=1"), "stripe.com");
+    assert.equal(extractDomain("WWW.CLOUDFLARE.COM"), "cloudflare.com");
+    assert.equal(extractDomain("subdomain.company.co.uk/team"), "subdomain.company.co.uk");
+    assert.equal(extractDomain(undefined), undefined);
+    assert.equal(extractDomain(""), undefined);
+  });
+
+  it("25. Seniority and department inference accurately maps titles to Hunter taxonomy", () => {
+    const exec = mapSeniorityAndDepartment("Founder & CEO");
+    assert.equal(exec.seniority, "executive");
+    assert.ok(exec.department?.includes("management"));
+
+    const eng = mapSeniorityAndDepartment("VP of Engineering");
+    assert.ok(eng.seniority?.includes("executive"));
+    assert.ok(eng.department?.includes("it"));
+
+    const mkt = mapSeniorityAndDepartment("Head of Growth Marketing");
+    assert.ok(mkt.seniority?.includes("executive"));
+    assert.ok(mkt.department?.includes("marketing"));
+
+    const blank = mapSeniorityAndDepartment("");
+    assert.equal(blank.seniority, undefined);
+    assert.equal(blank.department, undefined);
+  });
+
+  it("26. HunterLeadDiscoveryProvider implements LeadSourceProvider contract", () => {
+    const provider = new HunterLeadDiscoveryProvider("test-key-mock");
+    assert.equal(provider.id, "hunter");
+    assert.equal(provider.name, "Hunter.io B2B Lead Discovery");
+    assert.equal(provider.isConfigured(), true);
+    assert.ok(provider.capabilities.supportsEmail);
+    assert.ok(provider.capabilities.supportsLinkedIn);
+    assert.ok(provider.capabilities.maxLimit >= 100);
+    assert.equal(typeof provider.search, "function");
+    assert.equal(typeof provider.getHealth, "function");
+    assert.equal(typeof provider.getLead, "function");
+  });
+
+  it("27. HunterLeadDiscoveryProvider unconfigured behavior when key is empty", async () => {
+    const unconfigured = new HunterLeadDiscoveryProvider("");
+    assert.equal(unconfigured.isConfigured(), false);
+
+    const result = await unconfigured.search({ companyDomain: "stripe.com" });
+    assert.equal(result.isConfigured, false);
+    assert.equal(result.leads.length, 0);
+
+    const health = await unconfigured.getHealth();
+    assert.equal(health.status, "unconfigured");
+  });
+
+  it("28. HunterLeadDiscoveryProvider informs user when neither domain nor company is provided", async () => {
+    const provider = new HunterLeadDiscoveryProvider("test-key");
+    const result = await provider.search({ jobTitle: "Founder" });
+
+    assert.equal(result.isConfigured, true);
+    assert.equal(result.leads.length, 0);
+    assert.ok(result.message?.includes("requires a company name or company domain"));
+  });
+
+  it("29. Hunter provider executes domain-search with strictly server-side X-API-KEY header", async () => {
+    let receivedHeaderKey: string | undefined;
+    let receivedUrl: string | undefined;
+
+    const mockServer = http.createServer((req, res) => {
+      receivedHeaderKey = req.headers["x-api-key"] as string;
+      receivedUrl = req.url;
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            domain: "stripe.com",
+            organization: "Stripe",
+            industry: "Financial Services",
+            city: "San Francisco",
+            state: "CA",
+            country: "US",
+            technologies: ["Node.js", "React"],
+            emails: [
+              {
+                value: "patrick@stripe.com",
+                type: "personal",
+                confidence: 99,
+                first_name: "Patrick",
+                last_name: "Collison",
+                position: "Co-founder and CEO",
+                seniority: "executive",
+                department: "executive",
+                linkedin: "https://www.linkedin.com/in/patrickcollison",
+                phone_number: "+1 415 555 0100",
+              },
+            ],
+          },
+          meta: {
+            results: 1,
+            limit: 25,
+            offset: 0,
+          },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, "127.0.0.1", resolve));
+    const address = mockServer.address() as { port: number };
+    const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("test-secret-hunter-token", mockBaseUrl);
+      const result = await provider.search({
+        companyDomain: "stripe.com",
+        jobTitle: "CEO",
+      });
+
+      // Verification: Header was transmitted
+      assert.equal(receivedHeaderKey, "test-secret-hunter-token");
+
+      // Verification: Key NEVER leaks into the request URL query string
+      assert.ok(receivedUrl, "Expected receivedUrl to exist");
+      assert.ok(!receivedUrl.includes("test-secret-hunter-token"), "API key must NEVER appear in request URL");
+      assert.ok(!receivedUrl.includes("api_key"), "api_key query param must not be used");
+
+      // Verification: Expected params present in query string
+      assert.ok(receivedUrl.includes("domain=stripe.com"));
+      assert.ok(receivedUrl.includes("type=personal"));
+      assert.ok(receivedUrl.includes("seniority=executive"));
+
+      // Verification: Results mapped correctly
+      assert.equal(result.leads.length, 1);
+      const lead = result.leads[0];
+      assert.equal(lead.fullName, "Patrick Collison");
+      assert.equal(lead.email, "patrick@stripe.com");
+      assert.equal(lead.jobTitle, "Co-founder and CEO");
+      assert.equal(lead.companyName, "Stripe");
+      assert.equal(lead.companyDomain, "stripe.com");
+      assert.equal(lead.location, "San Francisco, CA, US");
+      assert.equal(lead.linkedInUrl, "https://www.linkedin.com/in/patrickcollison");
+      assert.equal(lead.phone, "+1 415 555 0100");
+      assert.equal(lead.sourceProvider, "Hunter.io B2B Lead Discovery");
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("30. Hunter response mapping handles missing first/last name gracefully", async () => {
+    const mockServer = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            domain: "example.co",
+            organization: null,
+            emails: [
+              {
+                value: "dev.lead@example.co",
+                type: "personal",
+                first_name: null,
+                last_name: null,
+                position: null,
+                seniority: "senior",
+                department: "engineering",
+                linkedin: null,
+              },
+            ],
+          },
+          meta: { results: 1 },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, "127.0.0.1", resolve));
+    const address = mockServer.address() as { port: number };
+    const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("dummy-key", mockBaseUrl);
+      const result = await provider.search({ companyDomain: "example.co" });
+
+      assert.equal(result.leads.length, 1);
+      const lead = result.leads[0];
+      assert.equal(lead.email, "dev.lead@example.co");
+      assert.ok(lead.fullName.length > 0);
+      assert.equal(lead.jobTitle, "Senior Professional");
+      assert.equal(lead.companyName, "example.co");
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("31. Hunter error handling converts 401 into a clean error without exposing key", async () => {
+    const mockServer = http.createServer((_req, res) => {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          errors: [
+            {
+              id: "authentication_failed",
+              code: 401,
+              details: "No API key was provided or the provided API key is invalid.",
+            },
+          ],
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, "127.0.0.1", resolve));
+    const address = mockServer.address() as { port: number };
+    const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("invalid-key-xyz", mockBaseUrl);
+      const result = await provider.search({ companyDomain: "stripe.com" });
+
+      assert.equal(result.leads.length, 0);
+      assert.ok(result.message?.includes("Hunter.io authentication failed"));
+      assert.ok(!result.message?.includes("invalid-key-xyz"), "Message must not leak the key");
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("32. Hunter error handling converts 429 rate limit into a clean message", async () => {
+    const mockServer = http.createServer((_req, res) => {
+      res.writeHead(429, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          errors: [{ id: "rate_limit_exceeded", code: 429, details: "Rate limit exceeded" }],
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, "127.0.0.1", resolve));
+    const address = mockServer.address() as { port: number };
+    const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("rate-limited-key", mockBaseUrl);
+      const result = await provider.search({ companyDomain: "stripe.com" });
+
+      assert.equal(result.leads.length, 0);
+      assert.ok(result.message?.includes("rate limit or search quota exceeded"));
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("33. Hunter getHealth parses account details, plan, and quota", async () => {
+    const mockServer = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            first_name: "Maulik",
+            last_name: "Pandey",
+            email: "maulik@outreachos.dev",
+            plan_name: "Growth",
+            requests: {
+              searches: {
+                used: 12,
+                available: 488,
+              },
+            },
+          },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, "127.0.0.1", resolve));
+    const address = mockServer.address() as { port: number };
+    const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("good-key", mockBaseUrl);
+      const health = await provider.getHealth();
+
+      assert.equal(health.status, "ok");
+      assert.ok(health.message?.includes("Plan: Growth"));
+      assert.ok(health.message?.includes("Available searches: 488"));
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("34. Hunter getLead retrieves previously discovered lead by ID", async () => {
+    const mockServer = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            domain: "nexora.ai",
+            organization: "Nexora Intelligence",
+            emails: [
+              {
+                value: "founder@nexora.ai",
+                type: "personal",
+                first_name: "Alex",
+                last_name: "Rivera",
+                position: "Founder & CTO",
+              },
+            ],
+          },
+          meta: { results: 1 },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, "127.0.0.1", resolve));
+    const address = mockServer.address() as { port: number };
+    const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("cache-test-key", mockBaseUrl);
+      const searchRes = await provider.search({ companyDomain: "nexora.ai" });
+      assert.equal(searchRes.leads.length, 1);
+
+      const leadId = searchRes.leads[0].id;
+      const fetched = await provider.getLead(leadId);
+      assert.ok(fetched);
+      assert.equal(fetched.fullName, "Alex Rivera");
+      assert.equal(fetched.email, "founder@nexora.ai");
+
+      const notFound = await provider.getLead("non_existent_id");
+      assert.equal(notFound, null);
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("35. getLeadSourceProvider factory routes to HunterLeadDiscoveryProvider when LEAD_SOURCE_API_KEY is present and dev mode is false", () => {
+    const origKey = process.env.LEAD_SOURCE_API_KEY;
+    const origDevMode = process.env.DISCOVERY_DEV_MODE;
+
+    try {
+      process.env.LEAD_SOURCE_API_KEY = "test-live-key";
+      process.env.DISCOVERY_DEV_MODE = "false";
+
+      const provider = getLeadSourceProvider();
+      assert.equal(provider.id, "hunter");
+      assert.equal(provider.name, "Hunter.io B2B Lead Discovery");
+      assert.equal(provider.isConfigured(), true);
+
+      // Explicit mock override still respected
+      const mockProvider = getLeadSourceProvider("mock");
+      assert.equal(mockProvider.id, "mock");
+    } finally {
+      process.env.LEAD_SOURCE_API_KEY = origKey;
+      process.env.DISCOVERY_DEV_MODE = origDevMode;
     }
   });
 });
