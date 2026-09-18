@@ -20,7 +20,7 @@ export class ProductionEmailProvider implements EmailProvider {
       });
       return {
         success: false,
-        error: "Production email provider is not configured. Set RESEND_API_KEY or SMTP credentials in environment.",
+        error: "Production email provider is not configured. Set BREVO_API_KEY and BREVO_FROM_EMAIL or legacy email credentials in environment.",
       };
     }
 

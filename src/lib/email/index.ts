@@ -1,22 +1,44 @@
 import { EmailProvider } from "./types";
 import { DevelopmentEmailProvider } from "./development-provider";
 import { ProductionEmailProvider } from "./production-provider";
+import { BrevoEmailProvider } from "./brevo-provider";
 
 export * from "./types";
 export * from "./development-provider";
 export * from "./production-provider";
+export * from "./brevo-provider";
 
-// Singleton development provider instance for test assertions and local inspection
+// Singleton provider instances for local inspection, testing, and production runtime
 export const developmentEmailProvider = new DevelopmentEmailProvider();
+export const brevoEmailProvider = new BrevoEmailProvider();
 export const productionEmailProvider = new ProductionEmailProvider();
 
 /**
  * Returns the active email provider based on environment and configuration.
+ * Order of precedence:
+ * 1. EMAIL_DEV_MODE === "true" -> DevelopmentEmailProvider (offline test/mock precedence)
+ * 2. Brevo configured (BREVO_API_KEY + BREVO_FROM_EMAIL) -> BrevoEmailProvider
+ * 3. Legacy Resend/SMTP configured -> ProductionEmailProvider
+ * 4. Production environment with no provider configured -> safe unconfigured provider error
+ * 5. Development environment without Brevo configured -> DevelopmentEmailProvider
  */
 export function getEmailProvider(): EmailProvider {
-  if (process.env.NODE_ENV === "production" && productionEmailProvider.isConfigured) {
+  if (process.env.EMAIL_DEV_MODE === "true") {
+    return developmentEmailProvider;
+  }
+
+  if (brevoEmailProvider.isConfigured) {
+    return brevoEmailProvider;
+  }
+
+  if (productionEmailProvider.isConfigured) {
     return productionEmailProvider;
   }
+
+  if (process.env.NODE_ENV === "production") {
+    return productionEmailProvider;
+  }
+
   return developmentEmailProvider;
 }
 

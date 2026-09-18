@@ -212,8 +212,50 @@ Copy `.env.example` to `.env` or `.env.local` and populate variables as needed:
 | `OPENAI_BASE_URL` | Optional | `https://api.openai.com/v1` |
 | `OPENAI_MODEL` | Optional | `gpt-4o-mini` |
 | `LEAD_SOURCE_API_KEY` | Optional | API key for third-party B2B data provider |
+| `BREVO_API_KEY` | Optional | Brevo transactional email API key (server-side only) |
+| `BREVO_FROM_EMAIL` | Optional | Verified sender email address configured in Brevo |
+| `BREVO_FROM_NAME` | Optional | Sender display name (default: "OutreachOS Studio") |
+| `EMAIL_DEV_MODE` | Optional | Set to `"true"` to force local in-memory offline queue |
 | `EMAIL_SERVER_HOST` | Future | SMTP host for automated sequence dispatch |
 | `GOOGLE_CLIENT_ID` | Future | Google OAuth client ID for Calendar integration |
+
+---
+
+## Transactional Email Architecture
+
+OutreachOS uses a provider-agnostic `EmailProvider` architecture supporting seamless switching between local development and production delivery:
+
+- **`DevelopmentEmailProvider`** (Local In-Memory / Offline):
+  - Active by default in development or whenever `EMAIL_DEV_MODE="true"`.
+  - Captures verification links and password reset tokens in an in-memory queue.
+  - Zero external network calls; fully offline for local testing and automated CI suites.
+- **`BrevoEmailProvider`** (Production Outbound Email):
+  - Primary transactional provider for sending real email verification and password reset links.
+  - Uses the official Brevo transactional email API (`@getbrevo/brevo`).
+  - Includes bounded retries (max 2 retries on 5xx/network errors), fail-fast on 4xx, and 8-second timeout.
+
+### Brevo Setup Instructions
+
+To enable real outbound transactional emails:
+1. **Create a Brevo account** at [brevo.com](https://www.brevo.com).
+2. **Generate a Transactional API Key**: Navigate to *SMTP & API* → *API Keys* and generate a new key (e.g. `xkeysib-...`).
+3. **Verify Sender / Domain**: Navigate to *Senders, Domains & Dedicated IPs* and add/verify your sender email or domain. Brevo requires a verified sender to deliver emails.
+4. **Configure `.env.local`**:
+   ```env
+   BREVO_API_KEY="xkeysib-your-key-here"
+   BREVO_FROM_EMAIL="outreach@yourverifieddomain.com"
+   BREVO_FROM_NAME="OutreachOS Studio"
+   EMAIL_DEV_MODE="false"
+   ```
+5. **Restart the development server**:
+   ```bash
+   npm run dev
+   ```
+6. **Test Outbound Delivery**:
+   - Go to `/signup` to test email verification, or `/forgot-password` to test password reset.
+   - Enter your email address.
+   - Check your mailbox (including spam/junk folder).
+   - Verify Brevo dispatch and message ID in server logs.
 
 ---
 
