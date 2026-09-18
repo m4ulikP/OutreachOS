@@ -12,13 +12,18 @@ export async function middleware(req: NextRequest) {
   requestHeaders.set(REQUEST_ID_HEADER, requestId);
 
   // Allow public assets and public endpoints unconditionally
-  if (
+  const isPublicPath =
     pathname.startsWith("/api/auth") ||
     pathname === "/api/health" ||
     pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password" ||
+    pathname === "/verify-email" ||
     pathname.startsWith("/_next") ||
-    pathname.includes(".")
-  ) {
+    pathname.includes(".");
+
+  if (isPublicPath) {
     const res = NextResponse.next({
       request: {
         headers: requestHeaders,

@@ -98,30 +98,85 @@ enum IntegrationProvider {
   LEAD_SOURCE
 }
 
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 // --------------------------------------------------------
 // CORE USER & MULTI-TENANCY
 // --------------------------------------------------------
 
 model User {
-  id            String          @id @default(cuid())
-  email         String          @unique
-  name          String?
-  avatarUrl     String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String?
+  passwordHash   String?
+  emailVerified  DateTime?
+  avatarUrl      String?
+  sessionVersion Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  leads         Lead[]
-  companies     Company[]
-  tags          LeadTag[]
-  interactions  LeadInteraction[]
-  campaigns     Campaign[]
-  messages      EmailMessage[]
-  meetings      Meeting[]
-  aiResearches  AIResearch[]
-  aiGenerations AIGeneration[]
-  integrations  Integration[]
+  accounts       Account[]
+  sessions       Session[]
+  leads          Lead[]
+  companies      Company[]
+  tags           LeadTag[]
+  interactions   LeadInteraction[]
+  campaigns      Campaign[]
+  messages       EmailMessage[]
+  meetings       Meeting[]
+  aiResearches   AIResearch[]
+  aiGenerations  AIGeneration[]
+  integrations   Integration[]
 
   @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  id         String    @id @default(cuid())
+  identifier String
+  token      String    @unique
+  type       TokenType @default(EMAIL_VERIFICATION)
+  expires    DateTime
+  createdAt  DateTime  @default(now())
+
+  @@unique([identifier, token])
+  @@index([identifier, type])
+  @@map("verification_tokens")
 }
 
 // --------------------------------------------------------

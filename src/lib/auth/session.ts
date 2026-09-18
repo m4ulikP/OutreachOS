@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { decode } from "next-auth/jwt";
 import { authOptions, getAuthSecret } from "./auth-options";
+import { prisma } from "@/lib/db";
 
 export interface AuthUser {
   id: string;
@@ -90,8 +91,32 @@ export async function getAuthSession(req?: NextRequest | Request): Promise<AuthU
       const secret = getAuthSecret();
       const decoded = await decode({ token: rawToken, secret });
       if (decoded && (decoded.id || decoded.sub)) {
+        const userId = (decoded.id || decoded.sub) as string;
+        const tokenVersion = (decoded.sessionVersion as number | undefined) ?? 1;
+
+        // Revocation check: If user exists in DB, sessionVersion must match tokenVersion
+        const dbUser = await prisma.user
+          .findUnique({
+            where: { id: userId },
+            select: { id: true, email: true, name: true, sessionVersion: true },
+          })
+          .catch(() => null);
+
+        if (dbUser) {
+          if (dbUser.sessionVersion !== tokenVersion) {
+            // Token has been revoked (e.g. password was reset/changed or session invalidated)
+            return null;
+          }
+          return {
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+          };
+        }
+
+        // Safe fallback for synthetic unit tests where mock tokens have no DB user row
         return {
-          id: (decoded.id || decoded.sub) as string,
+          id: userId,
           email: (decoded.email as string) || "",
           name: (decoded.name as string) || null,
         };

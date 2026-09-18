@@ -7,8 +7,10 @@ import { Select } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  AlertCircle,
   Calendar,
   CheckCircle2,
+  Loader2,
   Lock,
 } from "lucide-react";
 
@@ -97,6 +99,7 @@ export default function SettingsPage() {
               </form>
             </CardContent>
           </Card>
+          <ChangePasswordCard />
         </TabsContent>
 
         {/* AI Provider Tab */}
@@ -340,5 +343,117 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function ChangePasswordCard() {
+  const [currentPassword, setCurrentPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (!currentPassword) {
+      setError("Please enter your current password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("New password must be at least 8 characters long.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Failed to update password.");
+      } else {
+        setSuccess(true);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Lock className="h-4 w-4 text-primary" />
+          <span>Account Security & Password</span>
+        </CardTitle>
+        <CardDescription>
+          Update your studio password to maintain account integrity and refresh active sessions
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {success && (
+          <div className="flex items-center gap-2 p-3 mb-4 rounded-md bg-success/15 border border-success/30 text-xs text-success font-medium">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>Password updated successfully.</span>
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 p-3 mb-4 rounded-md bg-danger/10 border border-danger/25 text-xs text-danger">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+        <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg text-xs">
+          <Input
+            label="Current Password"
+            name="currentPassword"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+          />
+          <div>
+            <Input
+              label="New Password"
+              name="newPassword"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Minimum 8 characters with 1 uppercase, 1 lowercase, and 1 number
+            </p>
+          </div>
+          <Input
+            label="Confirm New Password"
+            name="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+          <Button type="submit" size="sm" disabled={loading}>
+            {loading ? "Updating password…" : "Update Password"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/normalizer.test.ts tests/deduplication.test.ts tests/authorization.test.ts tests/analytics.test.ts tests/database-schema.test.ts tests/query-optimization.test.ts tests/validation.test.ts tests/observability.test.ts tests/smoke.test.ts tests/lead-management.test.ts tests/lead-ui.test.ts tests/csv-import.test.ts tests/lead-lifecycle.test.ts tests/discovery.test.ts",
+    "test": "tsx --test tests/normalizer.test.ts tests/deduplication.test.ts tests/authorization.test.ts tests/analytics.test.ts tests/database-schema.test.ts tests/query-optimization.test.ts tests/validation.test.ts tests/observability.test.ts tests/smoke.test.ts tests/lead-management.test.ts tests/lead-ui.test.ts tests/csv-import.test.ts tests/lead-lifecycle.test.ts tests/discovery.test.ts tests/production-auth.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "next": "^14.2.20",
@@ -28,6 +29,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.17.10",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",

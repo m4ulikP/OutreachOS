@@ -11,6 +11,7 @@ export type ApiErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "RATE_LIMIT_EXCEEDED"
   | "INTERNAL_SERVER_ERROR";
 
 export class ValidationError extends Error {
@@ -203,6 +204,27 @@ export function handleApiError(
       ),
       requestId
     );
+  }
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code: unknown }).code === "RATE_LIMIT_EXCEEDED"
+  ) {
+    const err = error as { message?: string; retryAfterSeconds?: number };
+    const message = err.message || "Too many requests. Please try again later.";
+    const retryAfter = err.retryAfterSeconds || 60;
+    const res = NextResponse.json(
+      {
+        error: message,
+        code: "RATE_LIMIT_EXCEEDED" as ApiErrorCode,
+        message,
+      },
+      { status: 429 }
+    );
+    res.headers.set("Retry-After", String(retryAfter));
+    return withRequestIdHeader(res, requestId);
   }
 
   // Handle known Prisma errors safely without leaking internal database schema details
