@@ -103,6 +103,13 @@ enum TokenType {
   PASSWORD_RESET
 }
 
+enum ResearchStatus {
+  IDLE
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
 // --------------------------------------------------------
 // CORE USER & MULTI-TENANCY
 // --------------------------------------------------------
@@ -441,37 +448,61 @@ model Meeting {
 // --------------------------------------------------------
 
 model AIResearch {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   leadId            String?
-  lead              Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead              Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
   companyId         String?
-  company           Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  company           Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
-  rawData           String?  @db.Text
+  status            ResearchStatus  @default(COMPLETED)
+  url               String?
+  summary           String?         @db.Text
+  structuredEvidence Json?
+  opportunitySignals Json?
+  serviceProfile    String          @default("web_development")
+  provider          String          @default("http_researcher")
+  providerVersion   String?         @default("1.0.0")
+  error             String?         @db.Text
+  researchedAt      DateTime        @default(now())
+
+  rawData           String?         @db.Text
   verifiedFacts     Json?
   keyPainPoints     Json?
   personalizedHooks Json?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now()) @updatedAt
 
   @@index([userId, leadId])
+  @@index([userId, companyId])
   @@map("ai_researches")
 }
 
 model AIGeneration {
-  id            String         @id @default(cuid())
-  userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leadId        String?
-  lead          Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  id                String         @id @default(cuid())
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId            String?
+  lead              Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
 
-  type          GenerationType
-  prompt        String         @db.Text
-  generatedText String         @db.Text
-  editedText    String?        @db.Text
-  wasSent       Boolean        @default(false)
-  createdAt     DateTime       @default(now())
+  type              GenerationType @default(COLD_EMAIL)
+  prompt            String         @db.Text
+  generatedText     String         @db.Text
+  editedText        String?        @db.Text
+  wasSent           Boolean        @default(false)
+
+  // Structured multi-channel outreach
+  subject           String?
+  emailBody         String?        @db.Text
+  linkedInMessage   String?        @db.Text
+  whyProspect       String?        @db.Text
+  evidenceUsed      Json?
+  serviceProfile    String         @default("web_development")
+  confidence        String?        @default("medium")
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @default(now()) @updatedAt
 
   @@index([userId, leadId])
   @@map("ai_generations")

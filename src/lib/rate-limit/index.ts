@@ -92,3 +92,54 @@ export async function enforceAuthRateLimit(
 
   return result;
 }
+
+/**
+ * Enforces rate limiting on website research requests (e.g. 10 requests / 5 minutes per user/IP).
+ */
+export async function enforceResearchRateLimit(
+  userId: string,
+  req?: Request | NextRequest
+): Promise<RateLimitResult> {
+  const store = getRateLimitStore();
+  const ip = getClientIp(req);
+  const key = `rl:research:${userId}:${ip}`;
+  const limit = 12;
+  const windowMs = 5 * 60 * 1000; // 5 minutes
+
+  const result = await store.consume(key, limit, windowMs);
+  if (!result.success) {
+    const retryAfter = Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000));
+    throw new RateLimitExceededError(
+      `Research request limit reached. Please wait ${retryAfter} seconds before researching another website.`,
+      retryAfter
+    );
+  }
+
+  return result;
+}
+
+/**
+ * Enforces rate limiting on AI personalization generation (e.g. 15 generations / 5 minutes per user/IP).
+ */
+export async function enforcePersonalizationRateLimit(
+  userId: string,
+  req?: Request | NextRequest
+): Promise<RateLimitResult> {
+  const store = getRateLimitStore();
+  const ip = getClientIp(req);
+  const key = `rl:personalization:${userId}:${ip}`;
+  const limit = 15;
+  const windowMs = 5 * 60 * 1000; // 5 minutes
+
+  const result = await store.consume(key, limit, windowMs);
+  if (!result.success) {
+    const retryAfter = Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000));
+    throw new RateLimitExceededError(
+      `Personalization generation limit reached. Please wait ${retryAfter} seconds before generating more outreach.`,
+      retryAfter
+    );
+  }
+
+  return result;
+}
+

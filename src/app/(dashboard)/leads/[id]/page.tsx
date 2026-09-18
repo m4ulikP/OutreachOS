@@ -37,6 +37,16 @@ import {
   Loader2,
   CalendarClock,
   AlertTriangle,
+  Sparkles,
+  RefreshCw,
+  ExternalLink,
+  ShieldCheck,
+  ShieldAlert,
+  Smartphone,
+  Bot,
+  Lightbulb,
+  CheckCircle,
+  Code2,
 } from "lucide-react";
 import { LeadStage, TagType, FollowUpStatus } from "@prisma/client";
 
@@ -101,6 +111,28 @@ export default function LeadDetailPage() {
   const [addingInteraction, setAddingInteraction] = React.useState(false);
   const [interactionError, setInteractionError] = React.useState<string | null>(null);
 
+  // Active Tab state
+  const [activeTab, setActiveTab] = React.useState("research");
+
+  // Website Research state
+  const [research, setResearch] = React.useState<any>(null);
+  const [loadingResearch, setLoadingResearch] = React.useState(false);
+  const [researchError, setResearchError] = React.useState<string | null>(null);
+  const [customWebsiteUrl, setCustomWebsiteUrl] = React.useState("");
+
+  // AI Personalization state
+  const [personalization, setPersonalization] = React.useState<any>(null);
+  const [loadingPersonalization, setLoadingPersonalization] = React.useState(false);
+  const [personalizationError, setPersonalizationError] = React.useState<string | null>(null);
+  const [draftSubject, setDraftSubject] = React.useState("");
+  const [draftEmailBody, setDraftEmailBody] = React.useState("");
+  const [draftLinkedInMessage, setDraftLinkedInMessage] = React.useState("");
+  const [savingPersonalization, setSavingPersonalization] = React.useState(false);
+  const [personalizationSavedNotice, setPersonalizationSavedNotice] = React.useState(false);
+  const [copiedSubject, setCopiedSubject] = React.useState(false);
+  const [copiedBody, setCopiedBody] = React.useState(false);
+  const [copiedLinkedIn, setCopiedLinkedIn] = React.useState(false);
+
   // Fetch lead details
   const fetchLead = React.useCallback(async () => {
     setLoading(true);
@@ -113,6 +145,9 @@ export default function LeadDetailPage() {
       const data = await res.json();
       setLead(data.lead);
       setNotes(data.lead.notes || "");
+      if (data.lead.website || data.lead.company?.domain || data.lead.company?.website) {
+        setCustomWebsiteUrl((prev) => prev || data.lead.website || data.lead.company?.domain || data.lead.company?.website || "");
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error loading lead";
       setError(msg);
@@ -120,6 +155,149 @@ export default function LeadDetailPage() {
       setLoading(false);
     }
   }, [leadId]);
+
+  // Fetch research details (cached or latest)
+  const fetchResearch = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/research`);
+      if (res.ok) {
+        const data = await res.json();
+        setResearch(data.research || null);
+        if (data.research?.url) {
+          setCustomWebsiteUrl((prev) => prev || data.research.url);
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+  }, [leadId]);
+
+  // Fetch personalization details
+  const fetchPersonalization = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/personalization`);
+      if (res.ok) {
+        const data = await res.json();
+        const p = data.personalization;
+        setPersonalization(p || null);
+        if (p) {
+          setDraftSubject(p.subject || "");
+          setDraftEmailBody(p.emailBody || p.generatedText || "");
+          setDraftLinkedInMessage(p.linkedInMessage || "");
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+  }, [leadId]);
+
+  // Run or re-run research
+  const handleRunResearch = async (forceRefresh = false) => {
+    setLoadingResearch(true);
+    setResearchError(null);
+    try {
+      const targetUrl = customWebsiteUrl.trim() || lead?.website || lead?.company?.domain || lead?.company?.website;
+      if (!targetUrl) {
+        throw new Error("Please enter a website URL to research.");
+      }
+      const res = await fetch(`/api/leads/${leadId}/research`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          websiteUrl: targetUrl,
+          serviceProfile: "web-development",
+          forceRefresh,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error?.message || "Website research failed");
+      }
+      setResearch(data.research);
+    } catch (err: unknown) {
+      setResearchError(err instanceof Error ? err.message : "Failed to run website research");
+    } finally {
+      setLoadingResearch(false);
+    }
+  };
+
+  // Generate or re-generate personalization
+  const handleGeneratePersonalization = async (forceRegenerate = false) => {
+    setLoadingPersonalization(true);
+    setPersonalizationError(null);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/personalization`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceProfile: "web-development",
+          forceRegenerate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error?.message || "Personalization generation failed");
+      }
+      const p = data.personalization;
+      setPersonalization(p);
+      setDraftSubject(p.subject || "");
+      setDraftEmailBody(p.emailBody || p.generatedText || "");
+      setDraftLinkedInMessage(p.linkedInMessage || "");
+    } catch (err: unknown) {
+      setPersonalizationError(err instanceof Error ? err.message : "Failed to generate outreach");
+    } finally {
+      setLoadingPersonalization(false);
+    }
+  };
+
+  // Save personalization edits (PUT)
+  const handleSavePersonalization = async () => {
+    setSavingPersonalization(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/personalization`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: personalization?.id,
+          subject: draftSubject,
+          emailBody: draftEmailBody,
+          linkedInMessage: draftLinkedInMessage,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error?.message || "Failed to save outreach draft");
+      }
+      setPersonalization(data.personalization);
+      setPersonalizationSavedNotice(true);
+      setTimeout(() => setPersonalizationSavedNotice(false), 3000);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to save outreach edits");
+    } finally {
+      setSavingPersonalization(false);
+    }
+  };
+
+  const handleCopySubject = () => {
+    if (!draftSubject) return;
+    navigator.clipboard.writeText(draftSubject);
+    setCopiedSubject(true);
+    setTimeout(() => setCopiedSubject(false), 2000);
+  };
+
+  const handleCopyBody = () => {
+    if (!draftEmailBody) return;
+    navigator.clipboard.writeText(draftEmailBody);
+    setCopiedBody(true);
+    setTimeout(() => setCopiedBody(false), 2000);
+  };
+
+  const handleCopyLinkedIn = () => {
+    if (!draftLinkedInMessage) return;
+    navigator.clipboard.writeText(draftLinkedInMessage);
+    setCopiedLinkedIn(true);
+    setTimeout(() => setCopiedLinkedIn(false), 2000);
+  };
 
   // Fetch interactions from dedicated endpoint
   const fetchInteractions = React.useCallback(async () => {
@@ -171,7 +349,9 @@ export default function LeadDetailPage() {
     fetchInteractions();
     fetchFollowUps();
     fetchTags();
-  }, [fetchLead, fetchInteractions, fetchFollowUps, fetchTags]);
+    fetchResearch();
+    fetchPersonalization();
+  }, [fetchLead, fetchInteractions, fetchFollowUps, fetchTags, fetchResearch, fetchPersonalization]);
 
   // Copy email
   const handleCopyEmail = (email: string) => {
@@ -735,9 +915,23 @@ export default function LeadDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Tabbed Modules: Timeline, Outreach, Meetings */}
-          <Tabs defaultValue="timeline" className="w-full">
+          {/* Tabbed Modules: Research, Personalization, Timeline, Outreach, Meetings */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex flex-wrap gap-1">
+              <TabsTrigger value="research" className="gap-1.5">
+                <Globe className="h-3.5 w-3.5 text-primary" />
+                <span>Website Research</span>
+                {research?.status === "COMPLETED" && (
+                  <span className="ml-1 h-2 w-2 rounded-full bg-emerald-500 inline-block" title="Research completed" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="personalization" className="gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <span>AI Outreach</span>
+                {personalization && (
+                  <span className="ml-1 h-2 w-2 rounded-full bg-primary inline-block" title="Outreach generated" />
+                )}
+              </TabsTrigger>
               <TabsTrigger value="timeline">
                 Timeline ({displayInteractions.length})
               </TabsTrigger>
@@ -746,6 +940,623 @@ export default function LeadDetailPage() {
                 Meetings ({lead.meetings?.length || 0})
               </TabsTrigger>
             </TabsList>
+
+            {/* Website Research Tab */}
+            <TabsContent value="research" className="space-y-4">
+              {/* Research Header / Control Card */}
+              <Card className="p-4 border-border bg-card space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                        Public Website Audit & Intelligence
+                      </span>
+                      {research?.status === "COMPLETED" && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          Researched
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      SSRF-safe, public-data scanner tailored for Maulik&apos;s Web Development freelance services.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {research?.status === "COMPLETED" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={loadingResearch}
+                        onClick={() => handleRunResearch(true)}
+                        className="h-7 text-xs gap-1.5"
+                        title="Bypass 7-day cache and fetch fresh website data"
+                      >
+                        {loadingResearch ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        <span>Re-run Research</span>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                  <input
+                    type="url"
+                    placeholder="https://example.com"
+                    value={customWebsiteUrl}
+                    onChange={(e) => setCustomWebsiteUrl(e.target.value)}
+                    disabled={loadingResearch}
+                    className="h-8 flex-1 rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={loadingResearch || !customWebsiteUrl.trim()}
+                    onClick={() => handleRunResearch(false)}
+                    className="h-8 text-xs gap-1.5 px-3"
+                  >
+                    {loadingResearch ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Auditing Website…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="h-3.5 w-3.5" />
+                        <span>{research ? "Refresh Research" : "Run Website Research"}</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {researchError && (
+                  <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/25 text-xs text-destructive flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{researchError}</span>
+                  </div>
+                )}
+              </Card>
+
+              {/* Research Results */}
+              {!research ? (
+                <EmptyState
+                  icon={<Globe className="h-6 w-6 text-primary/70" aria-hidden="true" />}
+                  title="No website research performed yet"
+                  description="Run an automated audit to extract technical diagnostics, mobile viewport check, public contact information, and pitch-ready web development opportunities."
+                  className="py-10 border-border bg-card/50"
+                  action={
+                    <Button
+                      size="sm"
+                      onClick={() => handleRunResearch(false)}
+                      disabled={loadingResearch || !customWebsiteUrl.trim()}
+                      className="gap-1.5 text-xs"
+                    >
+                      {loadingResearch ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Auditing…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Globe className="h-3.5 w-3.5" />
+                          <span>Run Research Now</span>
+                        </>
+                      )}
+                    </Button>
+                  }
+                />
+              ) : (
+                <div className="space-y-4 animate-in fade-in">
+                  {/* Summary Card */}
+                  <Card className="p-4 border-border bg-card space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-xs text-foreground">Target URL:</span>
+                        <a
+                          href={research.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-mono text-primary hover:underline flex items-center gap-1"
+                        >
+                          <span>{research.url}</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground tabular-nums">
+                        Researched: {formatDate(research.researchedAt)}
+                      </div>
+                    </div>
+                    <p className="text-xs text-foreground/90 leading-relaxed pt-1">
+                      {research.summary}
+                    </p>
+                  </Card>
+
+                  {/* Opportunities Detected */}
+                  <Card className="border-border bg-card">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-foreground font-semibold">
+                          <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                          Detected Web Development Opportunities
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-surface-elevated border border-border text-foreground font-mono">
+                          {research.opportunitySignals?.length || 0} Identified
+                        </span>
+                      </CardTitle>
+                      <CardDescription className="text-[11px]">
+                        Factually backed improvements Maulik can pitch to increase conversions and site performance.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2.5 pt-1">
+                      {(!research.opportunitySignals || research.opportunitySignals.length === 0) ? (
+                        <div className="text-xs text-muted-foreground italic py-2">
+                          No major technical or UX deficits detected on the public homepage.
+                        </div>
+                      ) : (
+                        research.opportunitySignals.map((opp: any, idx: number) => {
+                          const isHigh = opp.confidence === "HIGH";
+                          const isMed = opp.confidence === "MEDIUM";
+                          return (
+                            <div
+                              key={idx}
+                              className="p-3 rounded-lg border border-border bg-surface/60 space-y-2 hover:border-primary/30 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                  <AlertCircle className={cn(
+                                    "h-3.5 w-3.5 shrink-0",
+                                    isHigh ? "text-amber-500" : isMed ? "text-blue-500" : "text-muted-foreground"
+                                  )} />
+                                  <span>{opp.issue}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase font-mono",
+                                      isHigh
+                                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                                        : isMed
+                                        ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30"
+                                        : "bg-muted text-muted-foreground"
+                                    )}
+                                  >
+                                    {opp.confidence} Confidence
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-[11px] bg-card p-2 rounded border border-border/80 text-foreground/80 font-mono">
+                                <span className="text-muted-foreground text-[10px] uppercase block font-sans font-medium mb-0.5">
+                                  Observed Evidence:
+                                </span>
+                                {opp.evidence}
+                              </div>
+                              <div className="text-xs text-muted-foreground flex items-start gap-1.5">
+                                <span className="font-semibold text-foreground shrink-0">Recommendation:</span>
+                                <span>{opp.recommendation}</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Structured Technical & Business Evidence */}
+                  {research.structuredEvidence && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Technical Health */}
+                      <Card className="border-border bg-card">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <Code2 className="h-3.5 w-3.5 text-primary" />
+                            Technical Diagnostics
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-xs">
+                          <div className="flex items-center justify-between py-1 border-b border-border/60">
+                            <span className="text-muted-foreground">Mobile Viewport</span>
+                            {research.structuredEvidence.technical?.hasMobileViewport ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 text-[11px]">
+                                <Check className="h-3 w-3" /> Present
+                              </span>
+                            ) : (
+                              <span className="text-rose-500 font-medium flex items-center gap-1 text-[11px]">
+                                <X className="h-3 w-3" /> Missing
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between py-1 border-b border-border/60">
+                            <span className="text-muted-foreground">Final HTTPS</span>
+                            {research.structuredEvidence.technical?.isFinalHttps ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 text-[11px]">
+                                <ShieldCheck className="h-3 w-3" /> Secure
+                              </span>
+                            ) : (
+                              <span className="text-rose-500 font-medium flex items-center gap-1 text-[11px]">
+                                <ShieldAlert className="h-3 w-3" /> Insecure HTTP
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between py-1 border-b border-border/60">
+                            <span className="text-muted-foreground">Image Alt Text</span>
+                            <span className="font-mono text-[11px] text-foreground">
+                              {research.structuredEvidence.technical?.imagesWithAlt ?? 0} /{" "}
+                              {research.structuredEvidence.technical?.totalImages ?? 0}
+                            </span>
+                          </div>
+
+                          <div className="py-1">
+                            <span className="text-muted-foreground block text-[11px] mb-0.5">Page Title</span>
+                            <span className="font-medium text-foreground text-[11px] line-clamp-1">
+                              {research.structuredEvidence.identity?.pageTitle || "—"}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Business & Public Contacts */}
+                      <Card className="border-border bg-card">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <Building2 className="h-3.5 w-3.5 text-primary" />
+                            Public Business Signals
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-xs">
+                          <div className="flex items-center justify-between py-1 border-b border-border/60">
+                            <span className="text-muted-foreground">Online Booking</span>
+                            <span className="font-medium text-[11px]">
+                              {research.structuredEvidence.business?.hasOnlineBooking ? "Yes" : "Not Found"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between py-1 border-b border-border/60">
+                            <span className="text-muted-foreground">Ecommerce Store</span>
+                            <span className="font-medium text-[11px]">
+                              {research.structuredEvidence.business?.hasEcommerce ? "Yes" : "No"}
+                            </span>
+                          </div>
+
+                          <div className="py-1 border-b border-border/60">
+                            <span className="text-muted-foreground block text-[11px] mb-0.5">Public Emails</span>
+                            {research.structuredEvidence.business?.publicEmails?.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {research.structuredEvidence.business.publicEmails.map((e: string, i: number) => (
+                                  <span key={i} className="px-1.5 py-0.5 rounded bg-surface-elevated border border-border text-[10px] font-mono">
+                                    {e}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-[11px] italic">None listed on homepage</span>
+                            )}
+                          </div>
+
+                          <div className="py-1">
+                            <span className="text-muted-foreground block text-[11px] mb-0.5">Public Phones</span>
+                            {research.structuredEvidence.business?.phoneNumbers?.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {research.structuredEvidence.business.phoneNumbers.map((p: string, i: number) => (
+                                  <span key={i} className="px-1.5 py-0.5 rounded bg-surface-elevated border border-border text-[10px] font-mono">
+                                    {p}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-[11px] italic">None listed on homepage</span>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Transition to Personalization */}
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-primary/30 bg-primary/5">
+                    <div className="text-xs">
+                      <span className="font-semibold text-foreground block">Ready to draft high-converting outreach?</span>
+                      <span className="text-muted-foreground text-[11px]">
+                        Feed these verified website opportunities into OutreachOS&apos;s AI personalization engine.
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setActiveTab("personalization");
+                        if (!personalization) {
+                          handleGeneratePersonalization(false);
+                        }
+                      }}
+                      className="gap-1.5 text-xs shrink-0"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Draft Outreach Pitch →</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* AI Personalization Tab */}
+            <TabsContent value="personalization" className="space-y-4">
+              {/* Header / Service Profile banner */}
+              <Card className="p-4 border-border bg-card space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                        AI Multi-Channel Outreach Studio
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                        Web Development Service
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Factual, evidence-grounded copy for cold emails and LinkedIn messages with zero hallucinations.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {personalization && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={loadingPersonalization}
+                        onClick={() => handleGeneratePersonalization(true)}
+                        className="h-7 text-xs gap-1.5"
+                        title="Regenerate copy using current website evidence"
+                      >
+                        {loadingPersonalization ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        <span>Regenerate</span>
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={loadingPersonalization}
+                      onClick={() => handleGeneratePersonalization(false)}
+                      className="h-7 text-xs gap-1.5"
+                    >
+                      {loadingPersonalization ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Generating…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Bot className="h-3.5 w-3.5" />
+                          <span>{personalization ? "Reload Draft" : "Generate Outreach"}</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {personalizationError && (
+                  <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/25 text-xs text-destructive flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{personalizationError}</span>
+                  </div>
+                )}
+              </Card>
+
+              {!personalization ? (
+                <EmptyState
+                  icon={<Sparkles className="h-6 w-6 text-amber-500" aria-hidden="true" />}
+                  title="No personalized outreach generated yet"
+                  description="Generate high-converting, tailored email and LinkedIn pitches backed by verified website audit findings."
+                  className="py-10 border-border bg-card/50"
+                  action={
+                    <Button
+                      size="sm"
+                      onClick={() => handleGeneratePersonalization(false)}
+                      disabled={loadingPersonalization}
+                      className="gap-1.5 text-xs"
+                    >
+                      {loadingPersonalization ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Crafting Outreach…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <span>Generate Outreach Draft</span>
+                        </>
+                      )}
+                    </Button>
+                  }
+                />
+              ) : (
+                <div className="space-y-4 animate-in fade-in">
+                  {/* Why this prospect rationale & Evidence pills */}
+                  <Card className="p-4 border-border bg-card space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                        <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                        Strategic Pitch Rationale
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-surface-elevated border border-border text-foreground font-semibold">
+                        {personalization.confidence || "HIGH"} Confidence
+                      </span>
+                    </div>
+                    <p className="text-xs text-foreground/90 leading-relaxed italic bg-surface/50 p-2.5 rounded border border-border/60">
+                      &ldquo;{personalization.whyProspect}&rdquo;
+                    </p>
+                    {personalization.evidenceUsed && personalization.evidenceUsed.length > 0 && (
+                      <div className="pt-1">
+                        <span className="text-[11px] font-medium text-muted-foreground block mb-1">
+                          Website Evidence Grounding This Pitch:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {personalization.evidenceUsed.map((ev: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded bg-surface-elevated border border-border text-[10px] font-medium text-foreground flex items-center gap-1"
+                            >
+                              <CheckCircle className="h-2.5 w-2.5 text-emerald-500" />
+                              <span>{ev}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+
+                  {/* Channel 1: Cold Email */}
+                  <Card className="border-border bg-card">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                          <Mail className="h-3.5 w-3.5 text-primary" />
+                          Channel 1: Personalized Cold Email
+                        </CardTitle>
+                        <CardDescription className="text-[11px]">
+                          Tailored value proposition highlighting specific website opportunities
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                          onClick={handleCopyBody}
+                        >
+                          {copiedBody ? <Check className="h-3 w-3 text-emerald-500 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                          <span>{copiedBody ? "Copied" : "Copy Body"}</span>
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-1">
+                      {/* Subject input */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <label className="font-medium text-muted-foreground">Subject Line</label>
+                          <button
+                            type="button"
+                            onClick={handleCopySubject}
+                            className="text-primary hover:underline flex items-center gap-0.5 text-[10px]"
+                          >
+                            {copiedSubject ? "Copied!" : "Copy Subject"}
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={draftSubject}
+                          onChange={(e) => setDraftSubject(e.target.value)}
+                          className="h-8 w-full rounded border border-input bg-card px-2.5 text-xs text-foreground font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        />
+                      </div>
+
+                      {/* Email Body textarea */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <label className="font-medium text-muted-foreground">Email Body</label>
+                          <span className="text-muted-foreground text-[10px] font-mono">
+                            {draftEmailBody.trim() ? draftEmailBody.trim().split(/\s+/).length : 0} words
+                          </span>
+                        </div>
+                        <textarea
+                          rows={8}
+                          value={draftEmailBody}
+                          onChange={(e) => setDraftEmailBody(e.target.value)}
+                          className="w-full rounded border border-input bg-card p-2.5 text-xs text-foreground font-sans leading-relaxed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Channel 2: LinkedIn Message */}
+                  <Card className="border-border bg-card">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                          <Linkedin className="h-3.5 w-3.5 text-[#0077b5]" />
+                          Channel 2: LinkedIn Connection Request / InMail
+                        </CardTitle>
+                        <CardDescription className="text-[11px]">
+                          Concise, direct note referencing their website audit
+                        </CardDescription>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        onClick={handleCopyLinkedIn}
+                      >
+                        {copiedLinkedIn ? <Check className="h-3 w-3 text-emerald-500 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                        <span>{copiedLinkedIn ? "Copied" : "Copy Note"}</span>
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <label className="font-medium text-muted-foreground">Connection Note</label>
+                        <span className={cn(
+                          "text-[10px] font-mono",
+                          draftLinkedInMessage.length > 300 ? "text-amber-500 font-semibold" : "text-muted-foreground"
+                        )}>
+                          {draftLinkedInMessage.length} / 300 chars
+                        </span>
+                      </div>
+                      <textarea
+                        rows={3}
+                        value={draftLinkedInMessage}
+                        onChange={(e) => setDraftLinkedInMessage(e.target.value)}
+                        className="w-full rounded border border-input bg-card p-2.5 text-xs text-foreground font-sans leading-relaxed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* Save Draft Action Bar */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-lg border border-border bg-surface-elevated">
+                    <div>
+                      {personalizationSavedNotice ? (
+                        <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Outreach draft saved successfully to database!
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">
+                          Phase 5 Review Mode: All modifications are persisted to PostgreSQL upon saving.
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleSavePersonalization}
+                      disabled={savingPersonalization}
+                      className="gap-1.5 text-xs w-full sm:w-auto h-8 px-4"
+                    >
+                      {savingPersonalization ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Saving…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-3.5 w-3.5" />
+                          <span>Save Outreach Edits</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
 
             {/* Interaction Timeline Content */}
             <TabsContent value="timeline" className="space-y-4">
@@ -1225,19 +2036,23 @@ export default function LeadDetailPage() {
           <Card className="border-border bg-surface">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs flex items-center gap-1.5 text-foreground">
-                <PenLine className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
                 Tailored Outreach Pitch
               </CardTitle>
               <CardDescription className="text-[11px]">
-                Generate a fact-grounded cold outreach email for this prospect.
+                Review website audit findings and generate a fact-grounded cold pitch.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Link href="/personalization">
-                <Button size="sm" variant="outline" className="w-full text-xs gap-1.5">
-                  Draft Personalized Pitch
-                </Button>
-              </Link>
+            <CardContent className="space-y-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1.5"
+                onClick={() => setActiveTab("personalization")}
+              >
+                <PenLine className="h-3.5 w-3.5" />
+                <span>Open Outreach Studio</span>
+              </Button>
             </CardContent>
           </Card>
         </div>
