@@ -39,6 +39,7 @@ export const GET = withApiObservability(async (_req: NextRequest) => {
         },
         ai: {
           name: aiProvider.name,
+          provider: aiProvider.name,
           isConfigured: isAiConfigured,
         },
         email: {

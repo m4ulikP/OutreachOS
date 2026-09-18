@@ -55,6 +55,7 @@ export const GET = withApiObservability<RouteParams>(
         {
           success: true,
           personalization: personalization || null,
+          provider: getAIProvider().name,
           requestId,
         },
         { status: 200 }
@@ -128,6 +129,7 @@ export const POST = withApiObservability<RouteParams>(
               success: true,
               personalization: existingRecent,
               cached: true,
+              provider: getAIProvider().name,
               message: "Loaded existing saved outreach draft.",
               requestId,
             },
@@ -220,6 +222,7 @@ export const POST = withApiObservability<RouteParams>(
           success: true,
           personalization: savedGeneration,
           cached: false,
+          provider: aiProvider.name,
           requestId,
         },
         { status: 200 }

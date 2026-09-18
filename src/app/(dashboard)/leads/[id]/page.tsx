@@ -132,6 +132,7 @@ export default function LeadDetailPage() {
   const [copiedSubject, setCopiedSubject] = React.useState(false);
   const [copiedBody, setCopiedBody] = React.useState(false);
   const [copiedLinkedIn, setCopiedLinkedIn] = React.useState(false);
+  const [aiProviderName, setAiProviderName] = React.useState<string | null>(null);
 
   // Fetch lead details
   const fetchLead = React.useCallback(async () => {
@@ -179,6 +180,9 @@ export default function LeadDetailPage() {
       if (res.ok) {
         const data = await res.json();
         const p = data.personalization;
+        if (data.provider) {
+          setAiProviderName(data.provider);
+        }
         setPersonalization(p || null);
         if (p) {
           setDraftSubject(p.subject || "");
@@ -237,6 +241,9 @@ export default function LeadDetailPage() {
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || data.error?.message || "Personalization generation failed");
+      }
+      if (data.provider) {
+        setAiProviderName(data.provider);
       }
       const p = data.personalization;
       setPersonalization(p);
@@ -1298,6 +1305,11 @@ export default function LeadDetailPage() {
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
                         Web Development Service
                       </span>
+                      {aiProviderName && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-surface-elevated border border-border text-foreground/80 font-mono">
+                          AI: {aiProviderName}
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       Factual, evidence-grounded copy for cold emails and LinkedIn messages with zero hallucinations.
