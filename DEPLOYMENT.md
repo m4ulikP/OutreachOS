@@ -20,8 +20,9 @@ This document outlines the production deployment procedure, environment configur
 - **Request Correlation**: Canonical `X-Request-ID` propagation from middleware through route handlers, responses, and log streams.
 - **Health Diagnostics**: Lightweight `GET /api/health` performing a `SELECT 1` connectivity check, reporting `latencyMs`, and safe boolean configuration flags (200 OK / 503 Degraded).
 
+- **Phase 4 Prospect Discovery**: Provider-agnostic B2B prospect discovery architecture with strict tenant isolation, multi-tenant deduplication checks, bounded search criteria, selection & batch import pipeline (`POST /api/finder`, `POST /api/finder/import`), and offline development simulation mode.
+
 ### Not Yet Implemented (Future Phases)
-- **Real External Prospect Discovery**: Real Apollo / Hunter / Proxycurl enrichment integrations (currently operates on graceful unconfigured provider).
 - **AI Research & Pitch Generation**: Live OpenAI/Anthropic synthesis of website and LinkedIn intelligence (currently operates on preview/unconfigured adapter).
 - **Production Email Dispatch**: Automated SMTP / Resend / SendGrid sequence dispatch workers.
 - **Background Job Queue**: Asynchronous workers for scheduled follow-ups and reply-detection webhooks.

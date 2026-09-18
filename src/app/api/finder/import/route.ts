@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth/session";
 import { handleApiError, ValidationError } from "@/lib/api-response";
-import { finderSearchSchema } from "@/lib/validation/finder";
-import { searchProspects } from "@/lib/services/discovery-service";
+import { finderImportSchema } from "@/lib/validation/finder";
+import { importDiscoveredProspects } from "@/lib/services/discovery-service";
 import { withApiObservability } from "@/lib/api-wrapper";
 import { logger } from "@/lib/logger";
 
@@ -19,24 +19,24 @@ export const POST = withApiObservability(async (req: NextRequest, _ctx, { reques
       return handleApiError(new ValidationError("Invalid JSON in request body"), undefined, requestId);
     }
 
-    const validation = finderSearchSchema.safeParse(body);
+    const validation = finderImportSchema.safeParse(body);
     if (!validation.success) {
-      return handleApiError(validation.error, "Validation error in POST /api/finder", requestId);
+      return handleApiError(validation.error, "Validation error in POST /api/finder/import", requestId);
     }
 
-    const result = await searchProspects(user.id, validation.data);
+    const summary = await importDiscoveredProspects(user.id, validation.data);
 
-    logger.info("Prospect discovery search executed", {
+    logger.info("Prospects imported into leads database", {
       userId: user.id,
-      provider: result.providerName,
-      resultsCount: result.totalMatches,
-      isConfigured: result.isConfigured,
-      isDevelopmentMock: result.isDevelopmentMock ?? false,
+      totalSubmitted: summary.totalSubmitted,
+      importedCount: summary.importedCount,
+      alreadyExistedCount: summary.alreadyExistedCount,
+      failedCount: summary.failedCount,
       requestId,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(summary, { status: 201 });
   } catch (error: unknown) {
-    return handleApiError(error, "POST /api/finder error", requestId);
+    return handleApiError(error, "POST /api/finder/import error", requestId);
   }
 });

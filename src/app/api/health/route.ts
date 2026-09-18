@@ -35,6 +35,7 @@ export const GET = withApiObservability(async (_req: NextRequest) => {
         leadSource: {
           name: leadSource.name,
           isConfigured: isProspectProviderConfigured,
+          isDevelopmentMock: Boolean((leadSource as any).id === "mock"),
         },
         ai: {
           name: aiProvider.name,
