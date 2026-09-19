@@ -133,6 +133,35 @@ export default function LeadDetailPage() {
   const [copiedBody, setCopiedBody] = React.useState(false);
   const [copiedLinkedIn, setCopiedLinkedIn] = React.useState(false);
   const [aiProviderName, setAiProviderName] = React.useState<string | null>(null);
+  const [qualifyingCompany, setQualifyingCompany] = React.useState(false);
+  const [qualificationResult, setQualificationResult] = React.useState<{
+    websiteStatus: string;
+    opportunityCreated: boolean;
+    action: string;
+    opportunity?: any;
+    signals?: any[];
+    message?: string;
+  } | null>(null);
+
+  const handleQualifyCompany = async () => {
+    if (!lead?.company?.id) return;
+    setQualifyingCompany(true);
+    try {
+      const res = await fetch("/api/opportunities/qualify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: lead.company.id }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQualificationResult(data.qualification || null);
+      }
+    } catch {
+      // Non-fatal UI handler
+    } finally {
+      setQualifyingCompany(false);
+    }
+  };
 
   // Fetch lead details
   const fetchLead = React.useCallback(async () => {
@@ -2035,6 +2064,48 @@ export default function LeadDetailPage() {
                       <div className="text-foreground">{lead.company.location}</div>
                     </div>
                   )}
+
+                  <div className="pt-2 border-t border-border">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs gap-1.5"
+                      onClick={handleQualifyCompany}
+                      disabled={qualifyingCompany}
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                      {qualifyingCompany ? "Qualifying Opportunity..." : "Qualify Opportunity"}
+                    </Button>
+
+                    {qualificationResult && (
+                      <div className="mt-2.5 p-2 bg-muted/50 rounded-md text-[11px] space-y-1.5 border border-border/50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground font-medium">Presence Status</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border border-border font-medium bg-background text-foreground">
+                            {qualificationResult.websiteStatus}
+                          </span>
+                        </div>
+                        {qualificationResult.opportunity && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Opportunity</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/20 font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                              {qualificationResult.opportunity.type}
+                            </span>
+                          </div>
+                        )}
+                        {qualificationResult.signals && qualificationResult.signals.length > 0 && (
+                          <div className="text-muted-foreground pt-0.5 text-[10px]">
+                            {qualificationResult.signals.length} supported deficiencies identified
+                          </div>
+                        )}
+                        {qualificationResult.message && (
+                          <div className="text-muted-foreground pt-0.5 text-[10px] italic">
+                            {qualificationResult.message}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="text-muted-foreground py-2 italic">
