@@ -9,6 +9,10 @@ import {
   ResearchStatus,
   Prisma,
 } from "@prisma/client";
+import {
+  normalizeEmail,
+  computeCompositeHash,
+} from "../src/lib/deduplication/normalizer";
 
 const TENANT_A = "usr_opp_test_tenant_a";
 const TENANT_B = "usr_opp_test_tenant_b";
@@ -272,6 +276,8 @@ describe("Phase A: Opportunity Entity & Domain Model Foundation", () => {
         companyId: company.id,
         fullName: "Jane Doe",
         email: "jane@acmewebworks.io",
+        normalizedEmail: normalizeEmail("jane@acmewebworks.io"),
+        compositeHash: computeCompositeHash("Jane Doe", company.domain || company.name),
         stage: LeadStage.NEW,
       },
     });
@@ -455,6 +461,8 @@ describe("Phase A: Opportunity Entity & Domain Model Foundation", () => {
         userId: TENANT_A,
         fullName: "Temporary Contact",
         email: "temp_contact@test.dev",
+        normalizedEmail: normalizeEmail("temp_contact@test.dev"),
+        compositeHash: computeCompositeHash("Temporary Contact", null),
         stage: LeadStage.NEW,
       },
     });
@@ -574,6 +582,8 @@ describe("Phase A: Opportunity Entity & Domain Model Foundation", () => {
         companyId: company.id,
         fullName: "Alice Smith",
         email: "alice@standardcorp.com",
+        normalizedEmail: normalizeEmail("alice@standardcorp.com"),
+        compositeHash: computeCompositeHash("Alice Smith", company.domain || company.name),
         stage: LeadStage.NEW,
       },
       include: {
