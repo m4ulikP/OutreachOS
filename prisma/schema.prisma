@@ -110,33 +110,61 @@ enum ResearchStatus {
   FAILED
 }
 
+enum OpportunityType {
+  NO_WEBSITE
+  WEBSITE_IMPROVEMENT
+  ACTIVE_PROJECT
+  REDESIGN_REQUEST
+  DEVELOPMENT_REQUEST
+}
+
+enum OpportunityStage {
+  IDENTIFIED
+  QUALIFIED
+  PITCH_DRAFTED
+  CONTACTED
+  IN_DISCUSSION
+  CONVERTED
+  PASSED
+}
+
+enum OpportunitySource {
+  GOOGLE_PLACES
+  HUNTER_DISCOVER
+  HUNTER_DOMAIN_SEARCH
+  PUBLIC_FEED
+  MANUAL
+  CSV_IMPORT
+}
+
 // --------------------------------------------------------
 // CORE USER & MULTI-TENANCY
 // --------------------------------------------------------
 
 model User {
-  id             String          @id @default(cuid())
-  email          String          @unique
+  id             String    @id @default(cuid())
+  email          String    @unique
   name           String?
   passwordHash   String?
   emailVerified  DateTime?
   avatarUrl      String?
-  sessionVersion Int             @default(1)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  sessionVersion Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  leads          Lead[]
-  companies      Company[]
-  tags           LeadTag[]
-  interactions   LeadInteraction[]
-  campaigns      Campaign[]
-  messages       EmailMessage[]
-  meetings       Meeting[]
-  aiResearches   AIResearch[]
-  aiGenerations  AIGeneration[]
-  integrations   Integration[]
+  accounts      Account[]
+  sessions      Session[]
+  leads         Lead[]
+  companies     Company[]
+  tags          LeadTag[]
+  interactions  LeadInteraction[]
+  campaigns     Campaign[]
+  messages      EmailMessage[]
+  meetings      Meeting[]
+  aiResearches  AIResearch[]
+  aiGenerations AIGeneration[]
+  integrations  Integration[]
+  opportunities Opportunity[]
 
   @@map("users")
 }
@@ -191,22 +219,23 @@ model VerificationToken {
 // --------------------------------------------------------
 
 model Company {
-  id           String        @id @default(cuid())
-  userId       String
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  domain       String?
-  website      String?
-  linkedInUrl  String?
-  industry     String?
-  companySize  String?
-  location     String?
-  description  String?       @db.Text
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  domain      String?
+  website     String?
+  linkedInUrl String?
+  industry    String?
+  companySize String?
+  location    String?
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  leads        Lead[]
-  aiResearches AIResearch[]
+  leads         Lead[]
+  aiResearches  AIResearch[]
+  opportunities Opportunity[]
 
   @@unique([userId, name])
   @@index([userId, domain])
@@ -214,45 +243,46 @@ model Company {
 }
 
 model Lead {
-  id                String              @id @default(cuid())
-  userId            String
-  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyId         String?
-  company           Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
-  firstName         String?
-  lastName          String?
-  fullName          String?
-  jobTitle          String?
-  email             String?
-  phone             String?
-  website           String?
-  linkedInUrl       String?
-  companySize       String?
-  industry          String?
-  location          String?
-  source            String?
-  stage             LeadStage           @default(NEW)
-  notes             String?             @db.Text
+  firstName   String?
+  lastName    String?
+  fullName    String?
+  jobTitle    String?
+  email       String?
+  phone       String?
+  website     String?
+  linkedInUrl String?
+  companySize String?
+  industry    String?
+  location    String?
+  source      String?
+  stage       LeadStage @default(NEW)
+  notes       String?   @db.Text
 
   // Deduplication canonical fields (multi-tenant indexed)
   normalizedEmail       String?
   normalizedLinkedInUrl String?
   compositeHash         String?
 
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   lastInteractionAt DateTime?
 
   // Relations
-  tagAssignments    LeadTagAssignment[]
-  interactions      LeadInteraction[]
-  campaignLeads     CampaignLead[]
-  emailMessages     EmailMessage[]
-  followUps         FollowUp[]
-  meetings          Meeting[]
-  aiResearches      AIResearch[]
-  aiGenerations     AIGeneration[]
+  tagAssignments LeadTagAssignment[]
+  interactions   LeadInteraction[]
+  campaignLeads  CampaignLead[]
+  emailMessages  EmailMessage[]
+  followUps      FollowUp[]
+  meetings       Meeting[]
+  aiResearches   AIResearch[]
+  aiGenerations  AIGeneration[]
+  opportunities  Opportunity[]
 
   @@index([userId, email])
   @@index([userId, linkedInUrl])
@@ -271,13 +301,13 @@ model Lead {
 // --------------------------------------------------------
 
 model LeadTag {
-  id          String              @id @default(cuid())
-  userId      String
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  type        TagType             @default(CUSTOM)
-  color       String?             // e.g. hex code or badge theme
-  createdAt   DateTime            @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      TagType  @default(CUSTOM)
+  color     String? // e.g. hex code or badge theme
+  createdAt DateTime @default(now())
 
   assignments LeadTagAssignment[]
 
@@ -304,11 +334,11 @@ model LeadTagAssignment {
 // --------------------------------------------------------
 
 model LeadInteraction {
-  id          String          @id @default(cuid())
-  userId      String
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leadId      String
-  lead        Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   type        InteractionType
   title       String
@@ -326,35 +356,35 @@ model LeadInteraction {
 // --------------------------------------------------------
 
 model Campaign {
-  id            String          @id @default(cuid())
-  userId        String
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name          String
-  status        CampaignStatus  @default(DRAFT)
-  subject       String?
-  bodyTemplate  String?         @db.Text
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  status       CampaignStatus @default(DRAFT)
+  subject      String?
+  bodyTemplate String?        @db.Text
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  leads         CampaignLead[]
-  messages      EmailMessage[]
-  followUps     FollowUp[]
+  leads     CampaignLead[]
+  messages  EmailMessage[]
+  followUps FollowUp[]
 
   @@index([userId, status])
   @@map("campaigns")
 }
 
 model CampaignLead {
-  id          String             @id @default(cuid())
-  campaignId  String
-  campaign    Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  leadId      String
-  lead        Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  status      CampaignLeadStatus @default(PENDING)
-  sentAt      DateTime?
-  repliedAt   DateTime?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id         String             @id @default(cuid())
+  campaignId String
+  campaign   Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId     String
+  lead       Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status     CampaignLeadStatus @default(PENDING)
+  sentAt     DateTime?
+  repliedAt  DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
   @@unique([campaignId, leadId])
   @@index([campaignId])
@@ -367,33 +397,33 @@ model CampaignLead {
 // --------------------------------------------------------
 
 model EmailMessage {
-  id          String       @id @default(cuid())
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leadId      String
-  lead        Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  campaignId  String?
-  campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId     String
+  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
-  subject     String
-  body        String       @db.Text
-  sentAt      DateTime?
-  createdAt   DateTime     @default(now())
+  subject   String
+  body      String    @db.Text
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
 
-  events      EmailEvent[]
+  events EmailEvent[]
 
   @@index([userId, leadId])
   @@map("email_messages")
 }
 
 model EmailEvent {
-  id          String         @id @default(cuid())
-  messageId   String
-  message     EmailMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  type        EmailEventType
-  timestamp   DateTime       @default(now())
-  ipAddress   String?
-  userAgent   String?
+  id        String         @id @default(cuid())
+  messageId String
+  message   EmailMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type      EmailEventType
+  timestamp DateTime       @default(now())
+  ipAddress String?
+  userAgent String?
 
   @@index([messageId, type])
   @@map("email_events")
@@ -422,11 +452,11 @@ model FollowUp {
 // --------------------------------------------------------
 
 model Meeting {
-  id              String        @id @default(cuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leadId          String?
-  lead            Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  id     String  @id @default(cuid())
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
 
   title           String
   description     String?       @db.Text
@@ -448,31 +478,33 @@ model Meeting {
 // --------------------------------------------------------
 
 model AIResearch {
-  id                String          @id @default(cuid())
-  userId            String
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leadId            String?
-  lead              Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  companyId         String?
-  company           Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
-  status            ResearchStatus  @default(COMPLETED)
-  url               String?
-  summary           String?         @db.Text
+  status             ResearchStatus @default(COMPLETED)
+  url                String?
+  summary            String?        @db.Text
   structuredEvidence Json?
   opportunitySignals Json?
-  serviceProfile    String          @default("web_development")
-  provider          String          @default("http_researcher")
-  providerVersion   String?         @default("1.0.0")
-  error             String?         @db.Text
-  researchedAt      DateTime        @default(now())
+  serviceProfile     String         @default("web_development")
+  provider           String         @default("http_researcher")
+  providerVersion    String?        @default("1.0.0")
+  error              String?        @db.Text
+  researchedAt       DateTime       @default(now())
 
-  rawData           String?         @db.Text
+  rawData           String?  @db.Text
   verifiedFacts     Json?
   keyPainPoints     Json?
   personalizedHooks Json?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @default(now()) @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  opportunities Opportunity[]
 
   @@index([userId, leadId])
   @@index([userId, companyId])
@@ -480,29 +512,29 @@ model AIResearch {
 }
 
 model AIGeneration {
-  id                String         @id @default(cuid())
-  userId            String
-  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leadId            String?
-  lead              Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  id     String  @id @default(cuid())
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
 
-  type              GenerationType @default(COLD_EMAIL)
-  prompt            String         @db.Text
-  generatedText     String         @db.Text
-  editedText        String?        @db.Text
-  wasSent           Boolean        @default(false)
+  type          GenerationType @default(COLD_EMAIL)
+  prompt        String         @db.Text
+  generatedText String         @db.Text
+  editedText    String?        @db.Text
+  wasSent       Boolean        @default(false)
 
   // Structured multi-channel outreach
-  subject           String?
-  emailBody         String?        @db.Text
-  linkedInMessage   String?        @db.Text
-  whyProspect       String?        @db.Text
-  evidenceUsed      Json?
-  serviceProfile    String         @default("web_development")
-  confidence        String?        @default("medium")
+  subject         String?
+  emailBody       String? @db.Text
+  linkedInMessage String? @db.Text
+  whyProspect     String? @db.Text
+  evidenceUsed    Json?
+  serviceProfile  String  @default("web_development")
+  confidence      String? @default("medium")
 
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@index([userId, leadId])
   @@map("ai_generations")
@@ -519,10 +551,54 @@ model Integration {
   provider     IntegrationProvider
   isConnected  Boolean             @default(false)
   config       Json?
-  encryptedKey String?             // Server-side encrypted, never exposed
+  encryptedKey String? // Server-side encrypted, never exposed
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
   @@unique([userId, provider])
   @@map("integrations")
+}
+
+// --------------------------------------------------------
+// OPPORTUNITY DISCOVERY & CLIENT ACQUISITION
+// --------------------------------------------------------
+
+model Opportunity {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId  String?
+  company    Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leadId     String?
+  lead       Lead?       @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  researchId String?
+  research   AIResearch? @relation(fields: [researchId], references: [id], onDelete: SetNull)
+
+  type      OpportunityType
+  stage     OpportunityStage  @default(IDENTIFIED)
+  source    OpportunitySource @default(GOOGLE_PLACES)
+  sourceUrl String?
+
+  title       String
+  description String? @db.Text
+  budget      String?
+  currency    String?
+  confidence  String  @default("medium") // high | medium | low
+
+  evidence           Json?
+  opportunitySignals Json?
+  requestedServices  String[] @default([])
+  targetUrl          String?
+
+  discoveredAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId, stage])
+  @@index([userId, type])
+  @@index([userId, companyId])
+  @@index([userId, leadId])
+  @@index([userId, researchId])
+  @@index([userId, discoveredAt])
+  @@map("opportunities")
 }
