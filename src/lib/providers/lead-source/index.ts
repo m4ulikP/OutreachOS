@@ -678,12 +678,14 @@ import {
   HunterLeadDiscoveryProvider,
   extractDomain,
   mapSeniorityAndDepartment,
+  normalizeCountryCode,
 } from "./hunter";
 
 export {
   HunterLeadDiscoveryProvider,
   extractDomain,
   mapSeniorityAndDepartment,
+  normalizeCountryCode,
 };
 
 /**

@@ -22,6 +22,60 @@ export function extractDomain(input?: string): string | undefined {
 }
 
 /**
+ * Known country name / alias mappings to ISO-3166-1 alpha-2 codes.
+ */
+const COUNTRY_TO_ISO_MAP: Record<string, string> = {
+  india: "IN",
+  "united states": "US",
+  "united states of america": "US",
+  usa: "US",
+  "united kingdom": "GB",
+  uk: "GB",
+  canada: "CA",
+  germany: "DE",
+  france: "FR",
+  australia: "AU",
+  japan: "JP",
+  singapore: "SG",
+  netherlands: "NL",
+  ireland: "IE",
+  brazil: "BR",
+  spain: "ES",
+  italy: "IT",
+  switzerland: "CH",
+  sweden: "SE",
+  israel: "IL",
+  uae: "AE",
+  "united arab emirates": "AE",
+};
+
+/**
+ * Normalizes user-supplied location/country strings to an ISO-3166-1 alpha-2 code for Hunter.
+ * - Trims whitespace and normalizes case.
+ * - If the input is already a valid 2-letter ISO-style code, preserves it in uppercase.
+ * - If recognized from the mapping table, returns the uppercase ISO code.
+ * - If unrecognized or not a valid country code, returns undefined to safely avoid sending invalid codes.
+ */
+export function normalizeCountryCode(input?: string): string | undefined {
+  if (!input) return undefined;
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  // Case-insensitive lookup against known country aliases
+  const normalizedKey = trimmed.toLowerCase();
+  if (COUNTRY_TO_ISO_MAP[normalizedKey]) {
+    return COUNTRY_TO_ISO_MAP[normalizedKey];
+  }
+
+  // If already a valid 2-letter ISO-style code (e.g. "US", "in", "GB")
+  if (/^[a-zA-Z]{2}$/.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
+  return undefined;
+}
+
+/**
  * Maps common job titles to Hunter's officially supported seniority and department query parameters.
  * Hunter accepts:
  * - seniority: junior, senior, executive, director, manager
@@ -312,6 +366,12 @@ export class HunterLeadDiscoveryProvider implements LeadSourceProvider {
     }
     if (department) {
       queryParams.set("department", department);
+    }
+
+    // Normalize location to ISO-3166-1 alpha-2 if recognized
+    const normalizedCountry = normalizeCountryCode(filters.location);
+    if (normalizedCountry) {
+      queryParams.set("country", normalizedCountry);
     }
 
     let targetUrl = `${this.baseUrl}/domain-search?${queryParams.toString()}`;

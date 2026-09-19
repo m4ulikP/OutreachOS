@@ -79,6 +79,78 @@ const FREELANCER_ARCHETYPES: Archetype[] = [
   },
 ];
 
+interface FinderEmptyStateProps {
+  searchExecuted: boolean;
+  providerInfo: {
+    isConfigured: boolean;
+    isDevelopmentMock?: boolean;
+    providerName: string;
+    message?: string;
+  } | null;
+  searchResultsCount: number;
+}
+
+function FinderEmptyState({
+  searchExecuted,
+  providerInfo,
+  searchResultsCount,
+}: FinderEmptyStateProps) {
+  if (!searchExecuted) {
+    return (
+      <div className="rounded-md border border-border bg-surface p-12 text-center">
+        <Search className="h-6 w-6 mx-auto text-foreground-subtle mb-2" />
+        <p className="text-xs font-medium text-foreground">Configure criteria or pick an archetype</p>
+        <p className="text-[11px] text-foreground-muted mt-0.5 max-w-sm mx-auto">
+          Select an archetype preset above or customize search filters to query verified prospects.
+        </p>
+      </div>
+    );
+  }
+
+  if (providerInfo && !providerInfo.isConfigured && !providerInfo.isDevelopmentMock) {
+    return (
+      <div className="rounded-md border border-border bg-surface p-12 text-center">
+        <ShieldCheck className="h-6 w-6 mx-auto text-warning mb-2" />
+        <p className="text-xs font-medium text-foreground">Provider API key required</p>
+        <p className="text-[11px] text-foreground-muted mt-0.5 max-w-md mx-auto">
+          {providerInfo.message ||
+            "Connect an approved B2B provider API key in Settings to execute live queries."}
+        </p>
+        <div className="mt-4">
+          <Link href="/settings">
+            <Button size="sm" className="h-8 text-xs">Connect provider</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (searchResultsCount === 0) {
+    return (
+      <div className="rounded-md border border-border bg-surface p-12 text-center">
+        <Search className="h-6 w-6 mx-auto text-foreground-subtle mb-2" />
+        {providerInfo?.message ? (
+          <>
+            <p className="text-xs font-medium text-foreground">Target company or domain required</p>
+            <p className="text-[11px] text-foreground-muted mt-1 max-w-md mx-auto leading-relaxed">
+              {providerInfo.message}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-xs font-medium text-foreground">No leads matched these criteria</p>
+            <p className="text-[11px] text-foreground-muted mt-0.5">
+              Try broadening your job titles, locations, or company size filters.
+            </p>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export default function ClientFinderPage() {
   const [jobTitle, setJobTitle] = React.useState("");
   const [companyName, setCompanyName] = React.useState("");
@@ -492,10 +564,10 @@ export default function ClientFinderPage() {
               />
 
               <Input
-                label="Company name"
+                label="Company name or domain (required by Hunter)"
                 name="finderCompanyName"
                 spellCheck={false}
-                placeholder="e.g. CloudScale, Nexora…"
+                placeholder="e.g. Stripe, Razorpay, stripe.com…"
                 value={companyName}
                 onChange={(e) => {
                   setCompanyName(e.target.value);
@@ -545,10 +617,10 @@ export default function ClientFinderPage() {
               />
 
               <Input
-                label="Company domain"
+                label="Company domain (or name required by Hunter)"
                 name="finderCompanyDomain"
                 spellCheck={false}
-                placeholder="e.g. acme.com, cloudscale.io…"
+                placeholder="e.g. stripe.com, razorpay.com…"
                 value={companyDomain}
                 onChange={(e) => {
                   setCompanyDomain(e.target.value);
@@ -706,36 +778,12 @@ export default function ClientFinderPage() {
           )}
         </div>
 
-        {!searchExecuted ? (
-          <div className="rounded-md border border-border bg-surface p-12 text-center">
-            <Search className="h-6 w-6 mx-auto text-foreground-subtle mb-2" />
-            <p className="text-xs font-medium text-foreground">Configure criteria or pick an archetype</p>
-            <p className="text-[11px] text-foreground-muted mt-0.5 max-w-sm mx-auto">
-              Select an archetype preset above or customize search filters to query verified prospects.
-            </p>
-          </div>
-        ) : providerInfo && !providerInfo.isConfigured && !providerInfo.isDevelopmentMock ? (
-          <div className="rounded-md border border-border bg-surface p-12 text-center">
-            <ShieldCheck className="h-6 w-6 mx-auto text-warning mb-2" />
-            <p className="text-xs font-medium text-foreground">Provider API key required</p>
-            <p className="text-[11px] text-foreground-muted mt-0.5 max-w-md mx-auto">
-              {providerInfo.message ||
-                "Connect an approved B2B provider API key in Settings to execute live queries."}
-            </p>
-            <div className="mt-4">
-              <Link href="/settings">
-                <Button size="sm" className="h-8 text-xs">Connect provider</Button>
-              </Link>
-            </div>
-          </div>
-        ) : searchResults.length === 0 ? (
-          <div className="rounded-md border border-border bg-surface p-12 text-center">
-            <Search className="h-6 w-6 mx-auto text-foreground-subtle mb-2" />
-            <p className="text-xs font-medium text-foreground">No leads matched these criteria</p>
-            <p className="text-[11px] text-foreground-muted mt-0.5">
-              Try broadening your job titles, locations, or company size filters.
-            </p>
-          </div>
+        {!searchExecuted || (providerInfo && !providerInfo.isConfigured && !providerInfo.isDevelopmentMock) || searchResults.length === 0 ? (
+          <FinderEmptyState
+            searchExecuted={searchExecuted}
+            providerInfo={providerInfo}
+            searchResultsCount={searchResults.length}
+          />
         ) : (
           <div className="space-y-2.5">
             {searchResults.map((prospect) => {

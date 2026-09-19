@@ -11,6 +11,7 @@ import {
   getLeadSourceProvider,
   extractDomain,
   mapSeniorityAndDepartment,
+  normalizeCountryCode,
 } from "../src/lib/providers/lead-source";
 import * as http from "node:http";
 import {
@@ -895,5 +896,236 @@ describe("Phase 4: Production-Grade Real Prospect Discovery Suite", () => {
       process.env.LEAD_SOURCE_API_KEY = origKey;
       process.env.DISCOVERY_DEV_MODE = origDevMode;
     }
+  });
+
+  // ==========================================
+  // 7. FINDER FIX: COUNTRY NORMALIZATION & EMPTY STATE GUIDANCE
+  // ==========================================
+
+  it("36. Country normalization accurately maps names, aliases, and preserves ISO-3166 alpha-2", () => {
+    // Exact requested country mappings
+    assert.equal(normalizeCountryCode("India"), "IN");
+    assert.equal(normalizeCountryCode("United States"), "US");
+    assert.equal(normalizeCountryCode("United States of America"), "US");
+    assert.equal(normalizeCountryCode("USA"), "US");
+    assert.equal(normalizeCountryCode("United Kingdom"), "GB");
+    assert.equal(normalizeCountryCode("UK"), "GB");
+
+    // Case insensitivity and whitespace trimming
+    assert.equal(normalizeCountryCode("  india  "), "IN");
+    assert.equal(normalizeCountryCode("usa"), "US");
+    assert.equal(normalizeCountryCode("  uK  "), "GB");
+
+    // Existing 2-letter ISO codes preserved in uppercase
+    assert.equal(normalizeCountryCode("IN"), "IN");
+    assert.equal(normalizeCountryCode("in"), "IN");
+    assert.equal(normalizeCountryCode("US"), "US");
+    assert.equal(normalizeCountryCode("us"), "US");
+    assert.equal(normalizeCountryCode("GB"), "GB");
+    assert.equal(normalizeCountryCode("gb"), "GB");
+    assert.equal(normalizeCountryCode("de"), "DE");
+    assert.equal(normalizeCountryCode("FR"), "FR");
+
+    // Unknown country names safely handled without inventing invalid codes
+    assert.equal(normalizeCountryCode("Atlantis"), undefined);
+    assert.equal(normalizeCountryCode("Narnia"), undefined);
+    assert.equal(normalizeCountryCode("Unknown Country"), undefined);
+    assert.equal(normalizeCountryCode(""), undefined);
+    assert.equal(normalizeCountryCode("   "), undefined);
+    assert.equal(normalizeCountryCode(undefined), undefined);
+  });
+
+  it("37. Hunter provider includes country query param when location is recognized and omits when unknown", async () => {
+    let capturedUrl = "";
+    const mockServer = http.createServer((req, res) => {
+      capturedUrl = req.url || "";
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            domain: "stripe.com",
+            organization: "Stripe",
+            country: "IN",
+            emails: [
+              {
+                value: "founder@stripe.com",
+                first_name: "Patrick",
+                last_name: "Collison",
+                position: "Co-Founder & CEO",
+                confidence: 99,
+              },
+            ],
+          },
+          meta: { results: 1 },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const mockBaseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("test-key", mockBaseUrl);
+
+      // Search with location: "India" -> country=IN must be in URL
+      await provider.search({ companyDomain: "stripe.com", location: "India" });
+      assert.ok(capturedUrl.includes("country=IN"), `Expected country=IN in ${capturedUrl}`);
+
+      // Search with location: "USA" -> country=US must be in URL
+      await provider.search({ companyDomain: "stripe.com", location: "USA" });
+      assert.ok(capturedUrl.includes("country=US"), `Expected country=US in ${capturedUrl}`);
+
+      // Search with unknown location -> country param must NOT be added
+      await provider.search({ companyDomain: "stripe.com", location: "Atlantis" });
+      assert.ok(!capturedUrl.includes("country="), `Expected no country param for unknown location in ${capturedUrl}`);
+
+      // Search with no location -> country param must NOT be added
+      await provider.search({ companyDomain: "stripe.com" });
+      assert.ok(!capturedUrl.includes("country="), `Expected no country param in ${capturedUrl}`);
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("38. Hunter provider returns explicit company/domain requirement message when both are missing", async () => {
+    const provider = new HunterLeadDiscoveryProvider("valid-configured-key");
+    const result = await provider.search({
+      jobTitle: "Founder",
+      location: "India",
+    });
+
+    assert.equal(result.isConfigured, true);
+    assert.equal(result.leads.length, 0);
+    assert.equal(result.totalMatches, 0);
+    assert.ok(result.message);
+    assert.ok(
+      result.message.includes("Hunter.io requires a company name or company domain"),
+      `Expected requirement message, got: ${result.message}`
+    );
+  });
+
+  it("39. Finder API exposes provider guidance message even when isConfigured=true", async () => {
+    const origKey = process.env.LEAD_SOURCE_API_KEY;
+    const origDevMode = process.env.DISCOVERY_DEV_MODE;
+
+    try {
+      process.env.LEAD_SOURCE_API_KEY = "test-live-key";
+      process.env.DISCOVERY_DEV_MODE = "false";
+
+      // Send a query to POST /api/finder with jobTitle and location only (no company/domain)
+      const req = new NextRequest("http://localhost:3000/api/finder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: authCookieA,
+        },
+        body: JSON.stringify({
+          jobTitle: "Founder",
+          location: "India",
+        }),
+      });
+
+      const res = await finderSearchRoute(req);
+      assert.equal(res.status, 200);
+
+      const data = await res.json();
+      assert.equal(data.isConfigured, true);
+      assert.equal(data.leads.length, 0);
+      // Provider message must be preserved in API response so UI can render it
+      assert.ok(data.message);
+      assert.ok(data.message.includes("requires a company name or company domain"));
+    } finally {
+      process.env.LEAD_SOURCE_API_KEY = origKey;
+      process.env.DISCOVERY_DEV_MODE = origDevMode;
+    }
+  });
+
+  it("40. Existing Hunter company/domain discovery and deduplication remain functional", async () => {
+    let capturedUrl = "";
+    const mockServer = http.createServer((req, res) => {
+      capturedUrl = req.url || "";
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            domain: "razorpay.com",
+            organization: "Razorpay",
+            country: "IN",
+            emails: [
+              {
+                value: "harshil@razorpay.com",
+                first_name: "Harshil",
+                last_name: "Mathur",
+                position: "Co-Founder & CEO",
+                confidence: 95,
+                linkedin: "https://www.linkedin.com/in/harshilmathur",
+              },
+            ],
+          },
+          meta: { results: 1 },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const mockBaseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new HunterLeadDiscoveryProvider("test-key", mockBaseUrl);
+      const res = await provider.search({
+        companyDomain: "razorpay.com",
+        jobTitle: "Founder",
+        location: "India",
+      });
+
+      assert.equal(res.isConfigured, true);
+      assert.equal(res.leads.length, 1);
+      assert.equal(res.leads[0].fullName, "Harshil Mathur");
+      assert.equal(res.leads[0].email, "harshil@razorpay.com");
+      assert.equal(res.leads[0].companyDomain, "razorpay.com");
+      assert.ok(capturedUrl.includes("domain=razorpay.com"));
+      assert.ok(capturedUrl.includes("country=IN"));
+    } finally {
+      await new Promise<void>((resolve) => mockServer.close(() => resolve()));
+    }
+  });
+
+  it("41. Finder UI empty-state contract and input clarifications are strictly verified", async () => {
+    const fs = await import("node:fs");
+    const pageSource = fs.readFileSync("src/app/(dashboard)/finder/page.tsx", "utf8");
+
+    // Input clarification must inform user that Hunter requires company name or domain
+    assert.ok(
+      pageSource.includes("required by Hunter"),
+      "Finder form inputs must include 'required by Hunter' label clarification"
+    );
+    assert.ok(
+      pageSource.includes("Company name or domain (required by Hunter)"),
+      "Finder must have 'Company name or domain (required by Hunter)' label"
+    );
+    assert.ok(
+      pageSource.includes("Company domain (or name required by Hunter)"),
+      "Finder must have 'Company domain (or name required by Hunter)' label"
+    );
+
+    // Empty state logic: must check providerInfo?.message when searchResults.length === 0
+    assert.ok(
+      pageSource.includes("searchResults.length === 0"),
+      "Finder must contain empty results branch"
+    );
+    assert.ok(
+      pageSource.includes("providerInfo?.message"),
+      "Empty results branch must check providerInfo?.message"
+    );
+    assert.ok(
+      pageSource.includes("Target company or domain required"),
+      "Empty results branch must display 'Target company or domain required' heading when message exists"
+    );
+    assert.ok(
+      pageSource.includes("No leads matched these criteria"),
+      "Empty results branch must preserve fallback 'No leads matched these criteria' when message does not exist"
+    );
   });
 });
