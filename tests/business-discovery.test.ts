@@ -7,6 +7,11 @@ import { prisma } from "../src/lib/db";
 import {
   MockBusinessDiscoveryProvider,
   HunterDiscoverProvider,
+  GooglePlacesProvider,
+  GOOGLE_PLACES_FIELD_MASK,
+  extractDomainFromUrl,
+  formatPlaceType,
+  parseAddressComponents,
   getBusinessDiscoveryProvider,
   mapHeadcountToHunter,
 } from "../src/lib/providers/business-discovery";
@@ -510,5 +515,598 @@ describe("Phase B.1: Business Discovery Provider Foundation & Hunter Discover", 
 
     const body = await res.json();
     assert.equal(body.code, "VALIDATION_ERROR");
+  });
+
+  // =========================================================================
+  // 6. GOOGLE PLACES PROVIDER (PHASE B.2 - MOCKED HTTP)
+  // =========================================================================
+
+  it("19. Google Places helpers: extractDomainFromUrl, formatPlaceType, parseAddressComponents", () => {
+    // Domain extraction
+    assert.equal(extractDomainFromUrl("https://www.cedarparkdental.com/services"), "cedarparkdental.com");
+    assert.equal(extractDomainFromUrl("http://dentist.co.uk/about?q=1"), "dentist.co.uk");
+    assert.equal(extractDomainFromUrl("https://sub.domain.org/path/"), "sub.domain.org");
+    assert.equal(extractDomainFromUrl(undefined), undefined);
+    assert.equal(extractDomainFromUrl(""), undefined);
+    assert.equal(extractDomainFromUrl("   "), undefined);
+
+    // Place type formatting
+    assert.equal(formatPlaceType("dental_clinic"), "Dental Clinic");
+    assert.equal(formatPlaceType("auto_repair"), "Auto Repair");
+    assert.equal(formatPlaceType(undefined), undefined);
+
+    // Address components parsing
+    const parsedHq = parseAddressComponents(
+      [
+        { longText: "100", shortText: "100", types: ["street_number"] },
+        { longText: "Congress Avenue", shortText: "Congress Ave", types: ["route"] },
+        { longText: "Austin", shortText: "Austin", types: ["locality"] },
+        { longText: "Texas", shortText: "TX", types: ["administrative_area_level_1"] },
+        { longText: "United States", shortText: "US", types: ["country"] },
+        { longText: "78701", shortText: "78701", types: ["postal_code"] },
+      ],
+      "100 Congress Ave, Austin, TX 78701, USA"
+    );
+
+    assert.ok(parsedHq);
+    assert.equal(parsedHq.city, "Austin");
+    assert.equal(parsedHq.state, "TX");
+    assert.equal(parsedHq.country, "US");
+    assert.equal(parsedHq.postalCode, "78701");
+    assert.equal(parsedHq.streetAddress, "100 Congress Avenue");
+    assert.equal(parsedHq.formattedAddress, "100 Congress Ave, Austin, TX 78701, USA");
+  });
+
+  it("20. GooglePlacesProvider reports unconfigured when key is missing", async () => {
+    const provider = new GooglePlacesProvider("");
+    assert.equal(provider.isConfigured(), false);
+
+    const result = await provider.discover({ query: "dentist" });
+    assert.equal(result.isConfigured, false);
+    assert.equal(result.businesses.length, 0);
+    assert.ok(result.message?.includes("not configured"));
+
+    const health = await provider.getHealth();
+    assert.equal(health.status, "unconfigured");
+  });
+
+  it("21. GooglePlacesProvider constructs correct POST /places:searchText request with headers and body", async () => {
+    let capturedMethod = "";
+    let capturedUrl = "";
+    let capturedHeaders: Record<string, string | string[] | undefined> = {};
+    let capturedBody: any = null;
+
+    const mockServer = http.createServer((req, res) => {
+      capturedMethod = req.method || "";
+      capturedUrl = req.url || "";
+      capturedHeaders = req.headers;
+
+      let rawBody = "";
+      req.on("data", (chunk) => (rawBody += chunk));
+      req.on("end", () => {
+        try {
+          capturedBody = JSON.parse(rawBody);
+        } catch {}
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            places: [
+              {
+                id: "places_test_001",
+                displayName: { text: "Austin Dental Studio", languageCode: "en" },
+                formattedAddress: "200 South Congress, Austin, TX 78704, USA",
+                websiteUri: "https://austindentalstudio.com",
+                nationalPhoneNumber: "(512) 555-0199",
+                rating: 4.9,
+                userRatingCount: 215,
+                primaryType: "dentist",
+                primaryTypeDisplayName: { text: "Dentist" },
+                editorialSummary: { text: "Premier cosmetic and general dentistry clinic." },
+                googleMapsUri: "https://maps.google.com/?cid=1001",
+                addressComponents: [
+                  { longText: "Austin", shortText: "Austin", types: ["locality"] },
+                  { longText: "Texas", shortText: "TX", types: ["administrative_area_level_1"] },
+                  { longText: "United States", shortText: "US", types: ["country"] },
+                  { longText: "78704", shortText: "78704", types: ["postal_code"] },
+                ],
+              },
+            ],
+          })
+        );
+      });
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("google_test_key_xyz", baseUrl);
+      const result = await provider.discover({
+        query: "cosmetic dentist",
+        location: "Austin, TX",
+        limit: 15,
+      });
+
+      assert.equal(capturedMethod, "POST");
+      assert.equal(capturedUrl, "/places:searchText");
+      assert.equal(capturedHeaders["content-type"], "application/json");
+      assert.equal(capturedHeaders["x-goog-api-key"], "google_test_key_xyz");
+      assert.equal(capturedHeaders["x-goog-fieldmask"], GOOGLE_PLACES_FIELD_MASK);
+
+      // Verify cost-optimized field mask: only core identification, address, category, website, and maps URI
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.id"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.displayName"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.formattedAddress"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.websiteUri"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.primaryType"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.primaryTypeDisplayName"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.types"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.addressComponents"));
+      assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("places.googleMapsUri"));
+
+      // Verify that expensive Contact and Atmosphere SKUs are NOT requested in initial discovery
+      assert.equal(GOOGLE_PLACES_FIELD_MASK.includes("places.nationalPhoneNumber"), false);
+      assert.equal(GOOGLE_PLACES_FIELD_MASK.includes("places.internationalPhoneNumber"), false);
+      assert.equal(GOOGLE_PLACES_FIELD_MASK.includes("places.rating"), false);
+      assert.equal(GOOGLE_PLACES_FIELD_MASK.includes("places.userRatingCount"), false);
+      assert.equal(GOOGLE_PLACES_FIELD_MASK.includes("places.editorialSummary"), false);
+
+      assert.equal(capturedBody.textQuery, "cosmetic dentist in Austin, TX");
+      assert.equal(capturedBody.pageSize, 15);
+
+      assert.equal(result.isConfigured, true);
+      assert.equal(result.businesses.length, 1);
+      assert.equal(result.businesses[0].name, "Austin Dental Studio");
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("22. GooglePlacesProvider query construction logic (query, industry, keywords, location fallback)", async () => {
+    let lastQuery = "";
+
+    const mockServer = http.createServer((req, res) => {
+      let rawBody = "";
+      req.on("data", (chunk) => (rawBody += chunk));
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(rawBody);
+          lastQuery = parsed.textQuery;
+        } catch {}
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ places: [] }));
+      });
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("google_key", baseUrl);
+
+      // Query already containing location
+      await provider.discover({ query: "Plumber in Dallas", location: "Dallas" });
+      assert.equal(lastQuery, "Plumber in Dallas");
+
+      // Query + location
+      await provider.discover({ query: "Auto Repair", location: "Cleveland, OH" });
+      assert.equal(lastQuery, "Auto Repair in Cleveland, OH");
+
+      // Industry fallback
+      await provider.discover({ industry: "Veterinary Clinic", location: "Seattle" });
+      assert.equal(lastQuery, "Veterinary Clinic in Seattle");
+
+      // Keywords fallback
+      await provider.discover({ keywords: ["hvac", "ac repair"], location: "Phoenix" });
+      assert.equal(lastQuery, "hvac ac repair in Phoenix");
+
+      // Location alone
+      await provider.discover({ location: "Portland, OR" });
+      assert.equal(lastQuery, "Portland, OR");
+
+      // Empty query and location: should return message without sending HTTP request
+      lastQuery = "UNTOUCHED";
+      const emptyRes = await provider.discover({});
+      assert.equal(lastQuery, "UNTOUCHED");
+      assert.equal(emptyRes.businesses.length, 0);
+      assert.ok(emptyRes.message?.includes("requires a query"));
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("23. Response normalization: business with complete details and websiteUri", async () => {
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          places: [
+            {
+              id: "place_complete_001",
+              displayName: { text: "Apex Precision Dental", languageCode: "en" },
+              formattedAddress: "500 Main St, Austin, TX 78701, USA",
+              websiteUri: "https://www.apexprecisiondental.com/services?ref=google",
+              nationalPhoneNumber: "(512) 555-4321",
+              rating: 4.8,
+              userRatingCount: 89,
+              primaryType: "dentist",
+              primaryTypeDisplayName: { text: "Dental Clinic" },
+              types: ["dentist", "health", "point_of_interest"],
+              editorialSummary: { text: "Specialized in cosmetic porcelain veneers and implants." },
+              googleMapsUri: "https://maps.google.com/?cid=9999",
+              addressComponents: [
+                { longText: "Austin", shortText: "Austin", types: ["locality"] },
+                { longText: "Texas", shortText: "TX", types: ["administrative_area_level_1"] },
+                { longText: "United States", shortText: "US", types: ["country"] },
+                { longText: "78701", shortText: "78701", types: ["postal_code"] },
+              ],
+            },
+          ],
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("google_key", baseUrl);
+      const res = await provider.discover({ query: "Apex Dental" });
+
+      assert.equal(res.businesses.length, 1);
+      const biz = res.businesses[0];
+
+      assert.equal(biz.name, "Apex Precision Dental");
+      assert.equal(biz.externalId, "place_complete_001");
+      assert.equal(biz.websiteUrl, "https://www.apexprecisiondental.com/services?ref=google");
+      assert.equal(biz.domain, "apexprecisiondental.com");
+      assert.equal(biz.industry, "Dental Clinic");
+      assert.equal(biz.description, "Specialized in cosmetic porcelain veneers and implants.");
+      assert.equal(biz.phoneNumber, "(512) 555-4321");
+      assert.equal(biz.rating, 4.8);
+      assert.equal(biz.userRatingCount, 89);
+      assert.equal(biz.primaryType, "dentist");
+      assert.equal(biz.source, "GOOGLE_PLACES");
+      assert.equal(biz.sourceUrl, "https://maps.google.com/?cid=9999");
+      assert.equal(biz.headquarters?.city, "Austin");
+      assert.equal(biz.headquarters?.state, "TX");
+      assert.equal(biz.headquarters?.country, "US");
+      assert.equal(biz.headquarters?.postalCode, "78701");
+      assert.equal(biz.headquarters?.formattedAddress, "500 Main St, Austin, TX 78701, USA");
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("24. CRITICAL SEMANTIC TEST: Business WITHOUT websiteUri normalizes to websiteUrl === undefined", async () => {
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          places: [
+            {
+              id: "place_no_web_001",
+              displayName: { text: "Bob's Old School Barber Shop" },
+              formattedAddress: "123 Elm St, Austin, TX 78702, USA",
+              // websiteUri is completely absent/undefined in Google's response!
+              nationalPhoneNumber: "(512) 555-8888",
+              rating: 4.7,
+              userRatingCount: 42,
+              primaryType: "barber_shop",
+              primaryTypeDisplayName: { text: "Barber Shop" },
+              googleMapsUri: "https://maps.google.com/?cid=7777",
+            },
+          ],
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("google_key", baseUrl);
+      const res = await provider.discover({ query: "Bob's Barber" });
+
+      assert.equal(res.businesses.length, 1);
+      const biz = res.businesses[0];
+
+      // Critical Assertions
+      assert.equal(biz.name, "Bob's Old School Barber Shop");
+      assert.equal(biz.websiteUrl, undefined, "websiteUrl must be strictly undefined when absent in Google response");
+      assert.equal(biz.domain, undefined, "domain must be strictly undefined when websiteUrl is absent");
+      assert.notEqual(biz.websiteUrl, "bobsoldschoolbarbershop.com", "Must NEVER fabricate website URL from business name");
+      assert.equal(biz.source, "GOOGLE_PLACES");
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("25. Error handling: 400 Bad Request with sanitized message", async () => {
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: {
+            code: 400,
+            message: "FieldMask is invalid: places.unsupportedField",
+            status: "INVALID_ARGUMENT",
+          },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("google_key", baseUrl);
+      await assert.rejects(
+        async () => provider.discover({ query: "bakery" }),
+        (err: Error) => {
+          assert.ok(err.message.includes("FieldMask is invalid"));
+          return true;
+        }
+      );
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("26. Error handling: 401/403 Authentication / Access Denied", async () => {
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: {
+            code: 403,
+            message: "API key not valid. Please pass a valid API key.",
+            status: "PERMISSION_DENIED",
+          },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("invalid_key", baseUrl);
+      await assert.rejects(
+        async () => provider.discover({ query: "bakery" }),
+        (err: Error) => {
+          assert.ok(err.message.includes("Google Places access denied"));
+          return true;
+        }
+      );
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("27. Error handling: 429 Rate Limit / Quota Exceeded", async () => {
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(429, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: {
+            code: 429,
+            message: "Resource has been exhausted (e.g. check quota).",
+            status: "RESOURCE_EXHAUSTED",
+          },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("google_key", baseUrl);
+      await assert.rejects(
+        async () => provider.discover({ query: "bakery" }),
+        (err: Error) => {
+          assert.ok(err.message.includes("rate limit exceeded or quota exhausted"));
+          return true;
+        }
+      );
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("28. Error handling: 503 Transient error retries and succeeds on subsequent attempt", async () => {
+    let callCount = 0;
+
+    const mockServer = http.createServer((req, res) => {
+      callCount++;
+      if (callCount === 1) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Service Unavailable" }));
+        return;
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          places: [{ id: "retry_biz", displayName: { text: "Recovered Bakery" } }],
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider("google_key", baseUrl);
+      const res = await provider.discover({ query: "bakery" });
+
+      assert.equal(callCount, 2, "Must retry once on 503 transient error");
+      assert.equal(res.businesses.length, 1);
+      assert.equal(res.businesses[0].name, "Recovered Bakery");
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("29. Security: API key is never leaked in errors", async () => {
+    const SECRET_KEY = "super_secret_google_key_99999";
+
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      // Upstream accidentally echoes the secret key in message
+      res.end(
+        JSON.stringify({
+          error: {
+            code: 400,
+            message: `Invalid key format for key ${SECRET_KEY} in request`,
+          },
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const provider = new GooglePlacesProvider(SECRET_KEY, baseUrl);
+      await assert.rejects(
+        async () => provider.discover({ query: "bakery" }),
+        (err: Error) => {
+          assert.equal(err.message.includes(SECRET_KEY), false, "API key must never appear in thrown error");
+          assert.ok(err.message.includes("[REDACTED]"), "API key must be replaced with [REDACTED]");
+          return true;
+        }
+      );
+    } finally {
+      mockServer.close();
+    }
+  });
+
+  it("30. Provider factory selects GooglePlacesProvider for 'google-places' and 'google'", () => {
+    const googlePlaces = getBusinessDiscoveryProvider("google-places");
+    assert.equal(googlePlaces.id, "google-places");
+    assert.equal(googlePlaces.name, "Google Places (New)");
+
+    const googleShort = getBusinessDiscoveryProvider("google");
+    assert.equal(googleShort.id, "google-places");
+
+    const hunter = getBusinessDiscoveryProvider("hunter");
+    assert.equal(hunter.id, "hunter-discover");
+
+    const mock = getBusinessDiscoveryProvider("mock");
+    assert.equal(mock.id, "mock-business-discovery");
+  });
+
+  it("31. POST /api/opportunities/discover/businesses succeeds with providerId: 'google-places'", async () => {
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          places: [
+            {
+              id: "place_api_route_001",
+              displayName: { text: "Downtown Austin Optometry" },
+              formattedAddress: "800 Colorado St, Austin, TX 78701, USA",
+              websiteUri: "https://downtownaustinoptometry.com",
+              primaryType: "optometrist",
+              primaryTypeDisplayName: { text: "Optometrist" },
+            },
+          ],
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const originalBaseUrl = process.env.GOOGLE_PLACES_BASE_URL;
+    const originalKey = process.env.GOOGLE_PLACES_API_KEY;
+
+    process.env.GOOGLE_PLACES_BASE_URL = `http://127.0.0.1:${port}`;
+    process.env.GOOGLE_PLACES_API_KEY = "test_google_key";
+
+    try {
+      const req = new NextRequest("http://localhost:3000/api/opportunities/discover/businesses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: authCookieA,
+        },
+        body: JSON.stringify({
+          query: "optometrist",
+          location: "Austin, TX",
+          providerId: "google-places",
+          limit: 10,
+        }),
+      });
+
+      const res = await discoverBusinessesRoute(req);
+      assert.equal(res.status, 200);
+
+      const body = await res.json();
+      assert.equal(body.isConfigured, true);
+      assert.equal(body.providerName, "Google Places (New)");
+      assert.equal(body.businesses.length, 1);
+      assert.equal(body.businesses[0].name, "Downtown Austin Optometry");
+      assert.equal(body.businesses[0].source, "GOOGLE_PLACES");
+    } finally {
+      mockServer.close();
+      process.env.GOOGLE_PLACES_BASE_URL = originalBaseUrl;
+      process.env.GOOGLE_PLACES_API_KEY = originalKey;
+    }
+  });
+
+  it("32. Google Places discovery performs ZERO database writes", async () => {
+    const initialCompanyCount = await prisma.company.count({ where: { userId: TENANT_A } });
+    const initialOpportunityCount = await prisma.opportunity.count({ where: { userId: TENANT_A } });
+
+    const mockServer = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          places: [
+            {
+              id: "zero_write_place",
+              displayName: { text: "Zero Write Plumbing" },
+            },
+          ],
+        })
+      );
+    });
+
+    await new Promise<void>((resolve) => mockServer.listen(0, resolve));
+    const port = (mockServer.address() as any).port;
+    const originalBaseUrl = process.env.GOOGLE_PLACES_BASE_URL;
+    const originalKey = process.env.GOOGLE_PLACES_API_KEY;
+
+    process.env.GOOGLE_PLACES_BASE_URL = `http://127.0.0.1:${port}`;
+    process.env.GOOGLE_PLACES_API_KEY = "test_google_key";
+
+    try {
+      await discoverBusinesses(TENANT_A, {
+        query: "plumber",
+        providerId: "google-places",
+      });
+
+      const finalCompanyCount = await prisma.company.count({ where: { userId: TENANT_A } });
+      const finalOpportunityCount = await prisma.opportunity.count({ where: { userId: TENANT_A } });
+
+      assert.equal(finalCompanyCount, initialCompanyCount, "No companies should be written to DB during Google Places discovery");
+      assert.equal(finalOpportunityCount, initialOpportunityCount, "No opportunities should be written to DB during Google Places discovery");
+    } finally {
+      mockServer.close();
+      process.env.GOOGLE_PLACES_BASE_URL = originalBaseUrl;
+      process.env.GOOGLE_PLACES_API_KEY = originalKey;
+    }
   });
 });

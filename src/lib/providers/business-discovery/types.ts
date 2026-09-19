@@ -20,9 +20,12 @@ export type BusinessDiscoverySource =
   | "CSV_IMPORT";
 
 export interface BusinessHeadquarters {
+  streetAddress?: string;
+  formattedAddress?: string;
   city?: string;
   state?: string;
   country?: string;
+  postalCode?: string;
 }
 
 export interface DiscoveredBusiness {
@@ -44,6 +47,10 @@ export interface DiscoveredBusiness {
     generic: number;
     total: number;
   };
+  phoneNumber?: string;
+  rating?: number;
+  userRatingCount?: number;
+  primaryType?: string;
   source: BusinessDiscoverySource | string;
   sourceUrl?: string;
 }
