@@ -31,6 +31,7 @@ export const businessDiscoverySearchSchema = z
       .int("Offset must be an integer")
       .min(0, "Offset cannot be negative")
       .default(0),
+    persist: z.boolean().default(false),
   })
   .strict("Unrecognized or forbidden field submitted in business discovery search");
 

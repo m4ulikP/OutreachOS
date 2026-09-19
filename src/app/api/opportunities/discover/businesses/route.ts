@@ -35,7 +35,7 @@ export const POST = withApiObservability(async (req: NextRequest, _ctx, { reques
       );
     }
 
-    // 4. Execute business discovery through service (zero DB mutations in Phase B.1)
+    // 4. Execute business discovery through service
     const result = await discoverBusinesses(user.id, validation.data);
 
     // 5. Correlated structured logging
@@ -46,6 +46,11 @@ export const POST = withApiObservability(async (req: NextRequest, _ctx, { reques
       totalMatches: result.totalMatches,
       isConfigured: result.isConfigured,
       isDevelopmentMock: result.isDevelopmentMock ?? false,
+      persisted: validation.data.persist,
+      persistedCount: result.persisted?.persistedCount,
+      persistedCreated: result.persisted?.created,
+      persistedUpdated: result.persisted?.updated,
+      persistedFailed: result.persisted?.failed,
       requestId,
     });
 

@@ -72,6 +72,25 @@ export interface BusinessDiscoveryCriteria {
   providerId?: string;
 }
 
+export interface PersistedCompanySummary {
+  id: string;
+  name: string;
+  domain: string | null;
+  website: string | null;
+  location: string | null;
+  action: "created" | "updated" | "matched";
+}
+
+export interface PersistedBusinessResult {
+  total: number;
+  persistedCount: number;
+  created: number;
+  updated: number;
+  matched: number;
+  failed: number;
+  companies: PersistedCompanySummary[];
+}
+
 export interface BusinessSearchResult {
   businesses: DiscoveredBusiness[];
   totalMatches: number;
@@ -80,6 +99,7 @@ export interface BusinessSearchResult {
   providerName: string;
   providerId?: string;
   message?: string;
+  persisted?: PersistedBusinessResult;
 }
 
 export interface BusinessProviderHealth {

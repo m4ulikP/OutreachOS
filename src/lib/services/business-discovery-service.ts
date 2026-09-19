@@ -1,12 +1,12 @@
 import { getBusinessDiscoveryProvider } from "@/lib/providers/business-discovery";
 import {
-  BusinessDiscoveryCriteria,
   BusinessSearchResult,
 } from "@/lib/providers/business-discovery/types";
 import {
   businessDiscoverySearchSchema,
   BusinessDiscoverySearchInputValidated,
 } from "@/lib/validation/business-discovery";
+import { persistDiscoveredBusinesses } from "@/lib/services/business-persistence-service";
 import { z } from "zod";
 
 /**
@@ -14,11 +14,12 @@ import { z } from "zod";
  *
  * Responsibilities:
  * - Validates input parameters via Zod
- * - Selects the appropriate provider (Hunter Discover or Mock)
+ * - Selects the appropriate provider (Hunter Discover, Google Places, or Mock)
  * - Invokes discovery
  * - Enforces bounded limits
  * - Preserves provider messages/metadata
- * - Performs NO database writes in this phase (Phase B.1 foundation)
+ * - If persist: true, safely persists/enriches Company records for the current user
+ * - Performs NO Opportunity, Lead, or AIResearch mutations (Phase B.3 boundary)
  */
 export async function discoverBusinesses(
   userId: string,
@@ -33,6 +34,23 @@ export async function discoverBusinesses(
 
   // 3. Invoke provider search
   const result = await provider.discover(validated);
+
+  // 4. If persistence is explicitly requested, persist discovered businesses (Phase B.3)
+  if (validated.persist) {
+    if (result.businesses.length > 0) {
+      result.persisted = await persistDiscoveredBusinesses(userId, result.businesses);
+    } else {
+      result.persisted = {
+        total: 0,
+        persistedCount: 0,
+        created: 0,
+        updated: 0,
+        matched: 0,
+        failed: 0,
+        companies: [],
+      };
+    }
+  }
 
   return result;
 }
