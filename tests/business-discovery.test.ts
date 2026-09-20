@@ -26,6 +26,7 @@ import {
   enrichCompany,
 } from "../src/lib/services/business-persistence-service";
 import { POST as discoverBusinessesRoute } from "../src/app/api/opportunities/discover/businesses/route";
+import { POST as persistBusinessRoute } from "../src/app/api/opportunities/discover/businesses/persist/route";
 
 const TEST_SECRET = "test-secret-that-is-at-least-32-characters-long-for-jwt-signing";
 const TENANT_A = "usr_biz_disc_tenant_a";
@@ -1633,3 +1634,336 @@ describe("Phase B.1: Business Discovery Provider Foundation & Hunter Discover", 
     await prisma.user.deleteMany({ where: { id: { in: [TENANT_A, TENANT_B] } } });
   });
 });
+
+// =============================================================================
+// B.5A REGRESSION SUITE: Direct-Persist Endpoint & Provider Selection
+// =============================================================================
+
+describe("Phase B.5A: Direct-Persist Endpoint & Provider Selection Regressions", () => {
+  const PERSIST_TENANT_A = "usr_b5a_persist_tenant_a";
+  const PERSIST_TENANT_B = "usr_b5a_persist_tenant_b";
+
+  let cookieA: string;
+  let cookieB: string;
+
+  before(async () => {
+    process.env.AUTH_SECRET = TEST_SECRET;
+    process.env.NEXTAUTH_SECRET = TEST_SECRET;
+
+    cookieA = await createAuthCookie(
+      PERSIST_TENANT_A,
+      "a@b5a.dev",
+      "B5A Tenant A"
+    );
+    cookieB = await createAuthCookie(
+      PERSIST_TENANT_B,
+      "b@b5a.dev",
+      "B5A Tenant B"
+    );
+
+    await prisma.opportunity.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.aIResearch.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.lead.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.company.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+
+    await prisma.user.createMany({
+      data: [
+        { id: PERSIST_TENANT_A, email: "a@b5a.dev", name: "B5A Tenant A" },
+        { id: PERSIST_TENANT_B, email: "b@b5a.dev", name: "B5A Tenant B" },
+      ],
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 83. Unauthenticated request is rejected
+  // ---------------------------------------------------------------------------
+
+  it("83. POST /persist rejects unauthenticated request with 401", async () => {
+    const req = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses/persist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Ghost Corp", source: "GOOGLE_PLACES" }),
+      }
+    );
+
+    const res = await persistBusinessRoute(req);
+    assert.equal(res.status, 401);
+    const body = await res.json();
+    assert.equal(body.code, "AUTHENTICATION_REQUIRED");
+  });
+
+  // ---------------------------------------------------------------------------
+  // 84. Invalid / forbidden fields are rejected
+  // ---------------------------------------------------------------------------
+
+  it("84. POST /persist rejects forbidden fields and missing source with 400", async () => {
+    // Missing required `source`
+    const req1 = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses/persist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({ name: "No Source Corp" }),
+      }
+    );
+    const res1 = await persistBusinessRoute(req1);
+    assert.equal(res1.status, 400);
+    const b1 = await res1.json();
+    assert.equal(b1.code, "VALIDATION_ERROR");
+
+    // Forbidden extra field (strict mode)
+    const req2 = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses/persist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({
+          name: "Injection Corp",
+          source: "GOOGLE_PLACES",
+          userId: "other_tenant_victim",
+        }),
+      }
+    );
+    const res2 = await persistBusinessRoute(req2);
+    assert.equal(res2.status, 400);
+    const b2 = await res2.json();
+    assert.equal(b2.code, "VALIDATION_ERROR");
+  });
+
+  // ---------------------------------------------------------------------------
+  // 85. Individual persist preserves exact discovered business metadata
+  // ---------------------------------------------------------------------------
+
+  it("85. POST /persist persists exact DiscoveredBusiness metadata without re-searching", async () => {
+    const business: DiscoveredBusiness = {
+      externalId: "places_b5a_001",
+      name: "Riverside Auto Detailing",
+      domain: "riversideautodetailing.com",
+      websiteUrl: "https://riversideautodetailing.com",
+      industry: "Auto Detailing",
+      description: "Premium mobile auto detailing service.",
+      headquarters: {
+        formattedAddress: "321 River Rd, Austin, TX 78704, USA",
+        city: "Austin",
+        state: "TX",
+        country: "US",
+      },
+      headcountRange: "1-10",
+      rating: 4.9,
+      userRatingCount: 88,
+      primaryType: "car_wash",
+      source: "GOOGLE_PLACES",
+      sourceUrl: "https://maps.google.com/?cid=b5a001",
+    };
+
+    const req = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses/persist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify(business),
+      }
+    );
+
+    const res = await persistBusinessRoute(req);
+    assert.equal(res.status, 200);
+
+    const result = await res.json();
+    assert.equal(result.total, 1);
+    assert.equal(result.created, 1);
+    assert.equal(result.failed, 0);
+    assert.equal(result.companies.length, 1);
+
+    const summary = result.companies[0];
+    assert.equal(summary.action, "created");
+    assert.equal(summary.domain, "riversideautodetailing.com");
+    assert.equal(summary.website, "https://riversideautodetailing.com");
+    assert.equal(summary.location, "321 River Rd, Austin, TX 78704, USA");
+
+    // Verify DB record matches all provided fields
+    const inDb = await prisma.company.findUnique({ where: { id: summary.id } });
+    assert.ok(inDb, "Company must exist in DB");
+    assert.equal(inDb.userId, PERSIST_TENANT_A, "Must be owned by session tenant only");
+    assert.equal(inDb.name, "Riverside Auto Detailing");
+    assert.equal(inDb.domain, "riversideautodetailing.com");
+    assert.equal(inDb.website, "https://riversideautodetailing.com");
+    assert.equal(inDb.industry, "Auto Detailing");
+    assert.equal(inDb.location, "321 River Rd, Austin, TX 78704, USA");
+    assert.equal(inDb.description, "Premium mobile auto detailing service.");
+    assert.equal(inDb.companySize, "1-10");
+
+    // Hard boundary: no leads/opportunities/research
+    const leads = await prisma.lead.count({ where: { userId: PERSIST_TENANT_A } });
+    const opps = await prisma.opportunity.count({ where: { userId: PERSIST_TENANT_A } });
+    assert.equal(leads, 0);
+    assert.equal(opps, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 86. Tenant isolation: persist endpoint is strictly scoped to session tenant
+  // ---------------------------------------------------------------------------
+
+  it("86. POST /persist is tenant-isolated — Tenant B cannot see or affect Tenant A companies", async () => {
+    // Persist a business as Tenant A
+    const reqA = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses/persist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({
+          name: "Isolated Cloud Services",
+          domain: "isolated-cloud.io",
+          websiteUrl: "https://isolated-cloud.io",
+          source: "HUNTER_DISCOVER",
+        }),
+      }
+    );
+    const resA = await persistBusinessRoute(reqA);
+    assert.equal(resA.status, 200);
+    const dataA = await resA.json();
+    const companyIdA = dataA.companies[0].id;
+
+    // Persist same domain as Tenant B — must create a SEPARATE company record
+    const reqB = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses/persist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieB },
+        body: JSON.stringify({
+          name: "Isolated Cloud Services",
+          domain: "isolated-cloud.io",
+          websiteUrl: "https://isolated-cloud.io",
+          source: "HUNTER_DISCOVER",
+        }),
+      }
+    );
+    const resB = await persistBusinessRoute(reqB);
+    assert.equal(resB.status, 200);
+    const dataB = await resB.json();
+    const companyIdB = dataB.companies[0].id;
+
+    assert.notEqual(companyIdA, companyIdB, "Each tenant gets their own Company record");
+
+    const dbA = await prisma.company.findUnique({ where: { id: companyIdA } });
+    const dbB = await prisma.company.findUnique({ where: { id: companyIdB } });
+    assert.equal(dbA?.userId, PERSIST_TENANT_A);
+    assert.equal(dbB?.userId, PERSIST_TENANT_B);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 87. Idempotency: persisting the same business twice does not create duplicates
+  // ---------------------------------------------------------------------------
+
+  it("87. POST /persist is idempotent — second call updates/matches instead of creating duplicate", async () => {
+    const payload = {
+      name: "Idempotent Bakery B5A",
+      domain: "idempotent-bakery-b5a.com",
+      websiteUrl: "https://idempotent-bakery-b5a.com",
+      source: "MOCK_SIMULATION",
+    };
+
+    const makeReq = () =>
+      new NextRequest(
+        "http://localhost:3000/api/opportunities/discover/businesses/persist",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Cookie: cookieA },
+          body: JSON.stringify(payload),
+        }
+      );
+
+    const res1 = await persistBusinessRoute(makeReq());
+    assert.equal(res1.status, 200);
+    const data1 = await res1.json();
+    assert.equal(data1.created, 1);
+
+    const countBefore = await prisma.company.count({ where: { userId: PERSIST_TENANT_A } });
+
+    const res2 = await persistBusinessRoute(makeReq());
+    assert.equal(res2.status, 200);
+    const data2 = await res2.json();
+    assert.equal(data2.created, 0, "No new company should be created on second call");
+    assert.equal(data2.companies[0].id, data1.companies[0].id, "Same company ID returned");
+
+    const countAfter = await prisma.company.count({ where: { userId: PERSIST_TENANT_A } });
+    assert.equal(countAfter, countBefore, "Company count unchanged after idempotent second call");
+  });
+
+  // ---------------------------------------------------------------------------
+  // 88. Provider selection: providerId is passed through discovery schema
+  // ---------------------------------------------------------------------------
+
+  it("88. Discovery endpoint accepts and routes providerId: 'mock' correctly", async () => {
+    const req = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({
+          query: "dental",
+          providerId: "mock",
+          limit: 5,
+        }),
+      }
+    );
+
+    const res = await discoverBusinessesRoute(req);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.isDevelopmentMock, true, "mock providerId must route to MockBusinessDiscoveryProvider");
+    assert.ok(data.businesses.length > 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 89. Google Places business without website — persisted with domain:null
+  // ---------------------------------------------------------------------------
+
+  it("89. POST /persist: Google Places business without website URL persists with domain/website null", async () => {
+    const req = new NextRequest(
+      "http://localhost:3000/api/opportunities/discover/businesses/persist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({
+          name: "Corner Barbershop B5A",
+          source: "GOOGLE_PLACES",
+          externalId: "places_b5a_corner_001",
+          headquarters: {
+            formattedAddress: "10 Main St, Portland, OR 97201, USA",
+            city: "Portland",
+            state: "OR",
+            country: "US",
+          },
+          primaryType: "barber_shop",
+          rating: 4.6,
+          userRatingCount: 31,
+        }),
+      }
+    );
+
+    const res = await persistBusinessRoute(req);
+    assert.equal(res.status, 200);
+    const result = await res.json();
+    assert.equal(result.created, 1);
+
+    const inDb = await prisma.company.findUnique({
+      where: { id: result.companies[0].id },
+    });
+    assert.ok(inDb);
+    assert.equal(inDb.domain, null, "Domain must be null when no websiteUrl provided");
+    assert.equal(inDb.website, null, "Website must be null when no websiteUrl provided");
+    assert.equal(inDb.location, "10 Main St, Portland, OR 97201, USA");
+  });
+
+  after(async () => {
+    await prisma.opportunity.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.aIResearch.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.lead.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.company.deleteMany({ where: { userId: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [PERSIST_TENANT_A, PERSIST_TENANT_B] } } });
+  });
+});
+

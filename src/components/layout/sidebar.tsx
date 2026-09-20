@@ -17,6 +17,8 @@ import {
   ChevronRight,
   PlusCircle,
   LogOut,
+  Building2,
+  Globe,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -59,6 +61,21 @@ export const NAV_SECTIONS: NavSection[] = [
         name: "Client Finder",
         href: "/finder",
         icon: Search,
+      },
+    ],
+  },
+  {
+    title: "Discovery",
+    items: [
+      {
+        name: "Business Discovery",
+        href: "/discovery/businesses",
+        icon: Building2,
+      },
+      {
+        name: "Public Opportunities",
+        href: "/discovery/public",
+        icon: Globe,
       },
     ],
   },
